@@ -1,0 +1,56 @@
+# AMR Data Publisher Configuration
+# ===================================
+# Edit ONLY these values to match your setup
+
+robot:
+  id: "amr_001"          # Unique robot identifier
+  name: "AMR Robot 1"    # Human-readable name
+  location: "Warehouse"  # Optional location label
+
+network:
+  docker_host_ip: "192.168.1.100"   # ← CHANGE THIS to Docker host IP
+  mqtt_port: 1883                    # MQTT broker port
+  mqtt_username: "amr_robot"         # MQTT auth (set in Docker)
+  mqtt_password: "amr_password"      # MQTT auth (set in Docker)
+  reconnect_interval_sec: 5          # Retry connection every 5 seconds
+  connection_timeout_sec: 30
+
+# Rate limiting (to save bandwidth on Jetson → Docker link)
+publish_rates:
+  imu_hz: 10           # IMU at 10 Hz
+  odometry_hz: 10      # Odometry at 10 Hz
+  battery_hz: 0.5      # Battery every 2 seconds
+  color_image_hz: 5    # Camera at 5 FPS
+  depth_points_hz: 1   # Point cloud at 1 Hz (heavy!)
+  cloud_map_hz: 0.5    # SLAM map every 2 seconds
+  occupancy_grid_hz: 1 # 2D map at 1 Hz
+  encoders_hz: 10      # Encoders at 10 Hz
+  heartbeat_hz: 1      # Heartbeat every second
+
+# Point cloud settings (reduce bandwidth)
+pointcloud:
+  max_points: 50000       # Downsample to max 50k points
+  voxel_size: 0.05        # 5cm voxels for downsampling
+  compress: true          # LZ4 compression
+  send_colors: true       # Include RGB data
+
+# Image settings
+camera:
+  send_color: true
+  send_depth: false         # Depth is very large, use cloud instead
+  jpeg_quality: 40          # Compress images to 40% quality
+  resize_width: 320         # Resize to 320x240 for bandwidth
+  resize_height: 240
+
+# MQTT Quality of Service
+mqtt:
+  qos_sensor_data: 0      # QoS 0: fire-and-forget (fast)
+  qos_commands: 1         # QoS 1: at-least-once (reliable)
+  qos_maps: 1             # QoS 1: maps are important
+  retain_heartbeat: true  # Retain last heartbeat message
+
+# Local Rosbridge (also runs on Jetson for local access)
+rosbridge:
+  enabled: true
+  port: 9090
+  address: "0.0.0.0"

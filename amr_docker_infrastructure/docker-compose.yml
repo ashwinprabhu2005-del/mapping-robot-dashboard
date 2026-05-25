@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  
+  # ─────────────────────────────────────────────
+  # MQTT Broker (receives data from Jetson Nano)
+  # ─────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: amr_mqtt_broker
+    restart: always
+    ports:
+      - "1883:1883"   # MQTT (for robot)
+      - "9001:9001"   # MQTT over WebSocket (for browser)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - amr_network
+
+  # ─────────────────────────────────────────────
+  # InfluxDB (time-series sensor data)
+  # ─────────────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: amr_influxdb
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=amr_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=amr_data
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+      - ./influxdb/init:/docker-entrypoint-initdb.d
+    networks:
+      - amr_network
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL (structured data: maps, zones)
+  # ─────────────────────────────────────────────
+  postgresql:
+    image: postgres:15
+    container_name: amr_postgresql
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=amr_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgresql/init:/docker-entrypoint-initdb.d
+    networks:
+      - amr_network
+
+  # ─────────────────────────────────────────────
+  # Data Router (MQTT → PostgreSQL + InfluxDB)
+  # ─────────────────────────────────────────────
+  data_router:
+    build: ./data_router
+    container_name: amr_data_router
+    restart: always
+    environment:
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_USERNAME=data_router
+      - MQTT_PASSWORD=${MQTT_DATA_ROUTER_PASSWORD}
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=amr_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=amr_org
+      - INFLUXDB_BUCKET=amr_data
+    depends_on:
+      - mosquitto
+      - postgresql
+      - influxdb
+    networks:
+      - amr_network
+
+  # ─────────────────────────────────────────────
+  # Rosbridge (MQTT → ROS2 → WebSocket)
+  # ─────────────────────────────────────────────
+  rosbridge:
+    build: ./rosbridge
+    container_name: amr_rosbridge
+    restart: always
+    ports:
+      - "9090:9090"    # WebSocket for React dashboard
+    environment:
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+      - MQTT_USERNAME=rosbridge
+      - MQTT_PASSWORD=${MQTT_ROSBRIDGE_PASSWORD}
+    depends_on:
+      - mosquitto
+    networks:
+      - amr_network
+
+  # ─────────────────────────────────────────────
+  # FastAPI Server (REST API for dashboard)
+  # ─────────────────────────────────────────────
+  api_server:
+    build: ./api_server
+    container_name: amr_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=amr_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=amr_org
+      - INFLUXDB_BUCKET=amr_data
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_USERNAME=dashboard
+      - MQTT_PASSWORD=${MQTT_DASHBOARD_PASSWORD}
+    depends_on:
+      - postgresql
+      - influxdb
+    networks:
+      - amr_network
+
+# ─────────────────────────────────────────────
+# Persistent Volumes
+# ─────────────────────────────────────────────
+volumes:
+  mosquitto_data:
+  mosquitto_logs:
+  influxdb_data:
+  influxdb_config:
+  postgres_data:
+
+# ─────────────────────────────────────────────
+# Network
+# ─────────────────────────────────────────────
+networks:
+  amr_network:
+    driver: bridge

@@ -1,0 +1,75 @@
+# Defines which MQTT topics go to which database
+# Docker Data Router reads this mapping
+
+topic_routing:
+  
+  # InfluxDB topics (time-series data)
+  influxdb:
+    - mqtt_topic: "amr/+/sensors/imu"
+      measurement: "imu_data"
+      tags: ["robot_id"]
+      fields: ["angular_velocity_x", "angular_velocity_y", "angular_velocity_z",
+               "linear_acceleration_x", "linear_acceleration_y", "linear_acceleration_z",
+               "orientation_x", "orientation_y", "orientation_z", "orientation_w"]
+    
+    - mqtt_topic: "amr/+/sensors/odom"
+      measurement: "odometry"
+      tags: ["robot_id"]
+      fields: ["position_x", "position_y", "position_z",
+               "linear_velocity_x", "angular_velocity_z"]
+    
+    - mqtt_topic: "amr/+/sensors/battery"
+      measurement: "battery"
+      tags: ["robot_id"]
+      fields: ["voltage", "percentage", "current"]
+    
+    - mqtt_topic: "amr/+/sensors/encoders/+"
+      measurement: "wheel_encoders"
+      tags: ["robot_id", "wheel_side"]
+      fields: ["tick_count"]
+    
+    - mqtt_topic: "amr/+/status/heartbeat"
+      measurement: "robot_heartbeat"
+      tags: ["robot_id"]
+      fields: ["status", "uptime_seconds", "cpu_percent", "memory_percent"]
+  
+  # PostgreSQL topics (structured/permanent data)
+  postgresql:
+    - mqtt_topic: "amr/+/slam/occupancy_grid"
+      table: "map_snapshots"
+      store_interval_sec: 30  # Only save every 30 seconds
+    
+    - mqtt_topic: "amr/+/slam/info"
+      table: "slam_sessions"
+    
+    - mqtt_topic: "amr/+/events/+"
+      table: "robot_events"
+    
+    - mqtt_topic: "amr/+/zones/+"
+      table: "annotated_zones"
+  
+  # Rosbridge topics (forwarded to web dashboard)
+  rosbridge:
+    - mqtt_topic: "amr/+/sensors/imu"
+      ros_topic: "/imu/data"
+      ros_type: "sensor_msgs/Imu"
+    
+    - mqtt_topic: "amr/+/sensors/odom"
+      ros_topic: "/odom"
+      ros_type: "nav_msgs/Odometry"
+    
+    - mqtt_topic: "amr/+/sensors/battery"
+      ros_topic: "/battery_state"
+      ros_type: "sensor_msgs/BatteryState"
+    
+    - mqtt_topic: "amr/+/slam/cloud_map"
+      ros_topic: "/cloud_map"
+      ros_type: "sensor_msgs/PointCloud2"
+    
+    - mqtt_topic: "amr/+/slam/occupancy_grid"
+      ros_topic: "/occupancy_grid"
+      ros_type: "nav_msgs/OccupancyGrid"
+    
+    - mqtt_topic: "amr/+/camera/color_image"
+      ros_topic: "/camera/color/image_raw"
+      ros_type: "sensor_msgs/Image"

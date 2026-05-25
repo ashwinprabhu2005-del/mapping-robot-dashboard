@@ -1,0 +1,14 @@
+mqtt:
+  broker: "mosquitto"
+  port: 1883
+  topics:
+    - "amr/#"
+postgres:
+  host: "postgresql"
+  port: 5432
+  db: "amr_db"
+  user: "amr_user"
+influxdb:
+  url: "http://influxdb:8086"
+  org: "amr_org"
+  bucket: "amr_data"

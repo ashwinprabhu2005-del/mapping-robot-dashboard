@@ -1,13 +1,6 @@
-import { Play, Pause, RotateCcw, Save, Bot, LogOut, Wifi } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Play, Pause, RotateCcw, Save, Bot, Wifi } from 'lucide-react';
 
 export default function ControlHeader({ robotState, isRunning, onToggleRunning, onRestart }) {
-  const { user, logoutUser } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = () => { logoutUser(); navigate('/login'); };
-
   const modeColor = robotState?.mode === 'AUTONOMOUS' ? 'var(--cyan)' : 'var(--amber)';
 
   return (
@@ -73,20 +66,12 @@ export default function ControlHeader({ robotState, isRunning, onToggleRunning, 
         </button>
       </div>
 
-      {/* Right: Connection + User */}
+      {/* Right: Connection */}
       <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'11px', color:'var(--green)' }}>
           <Wifi size={13} />
           <span style={{ fontFamily:'var(--font-mono)' }}>CONNECTED</span>
         </div>
-        <div style={{ width:'1px', height:'28px', background:'var(--border)' }} />
-        <div style={{ fontSize:'12px', textAlign:'right' }}>
-          <div style={{ fontWeight:600, color:'var(--text-primary)' }}>{user?.name}</div>
-          <div style={{ color:'var(--text-muted)', fontSize:'10px' }}>{user?.role}</div>
-        </div>
-        <button id="btn-logout" className="btn btn-red" style={{ padding:'6px 12px' }} onClick={handleLogout}>
-          <LogOut size={13} /> Logout
-        </button>
       </div>
     </header>
   );

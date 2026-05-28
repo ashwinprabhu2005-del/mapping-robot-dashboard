@@ -21,6 +21,150 @@ export default function AnnotationTab({ selectedMap }) {
   // Meshes for rendering (using ref to prevent state loops)
   const zoneMeshesRef = useRef({});
 
+  const handleAutoClickDetect = (pt) => {
+    if (!viewerRef.current) return;
+    
+    const camera = viewerRef.current.getCamera();
+    const renderer = viewerRef.current.getRenderer();
+    
+    // Project 3D point to 2D NDC coordinates
+    const projected = pt.clone().project(camera);
+    // Convert to normalized click coords [0, 1]
+    const click_x = (projected.x + 1) / 2;
+    const click_y = (1 - projected.y) / 2;
+    
+    // Capture the canvas screenshot
+    const canvas = renderer.domElement;
+    const base64Image = canvas.toDataURL('image/jpeg', 0.95);
+    
+    setIsDetecting(true);
+    
+    fetch('http://localhost:5000/api/detect_click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: base64Image,
+        click_x,
+        click_y,
+        conf: yoloConf
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      setIsDetecting(false);
+      if (!data.success) {
+        alert(data.error || 'Failed to detect object at click location.');
+        return;
+      }
+      
+      const det = data.detection;
+      const model = viewerRef.current.getModel();
+      const points = [];
+      const raycaster = new THREE.Raycaster();
+      raycaster.params.Points.threshold = 0.2;
+      const mouse = new THREE.Vector2();
+      
+      // Calculate depth samples from polygon points
+      const poly = det.polygon;
+      
+      if (poly && poly.length > 0) {
+        // Sample up to 30 points from the polygon boundary
+        const step = Math.max(1, Math.floor(poly.length / 30));
+        for (let i = 0; i < poly.length; i += step) {
+          const px = poly[i][0];
+          const py = poly[i][1];
+          mouse.x = px * 2 - 1;
+          mouse.y = -(py * 2 - 1);
+          
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObject(model, true);
+          if (intersects.length > 0) {
+            points.push(intersects[0].point.clone());
+          }
+        }
+      } else {
+        // Fallback: project bounding box corners and center
+        const [x1, y1, x2, y2] = det.box;
+        const boxPoints = [
+          [x1 / data.width, y1 / data.height],
+          [x2 / data.width, y1 / data.height],
+          [x1 / data.width, y2 / data.height],
+          [x2 / data.width, y2 / data.height],
+          [(x1+x2)/2 / data.width, (y1+y2)/2 / data.height]
+        ];
+        boxPoints.forEach(([px, py]) => {
+          mouse.x = px * 2 - 1;
+          mouse.y = -(py * 2 - 1);
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObject(model, true);
+          if (intersects.length > 0) {
+            points.push(intersects[0].point.clone());
+          }
+        });
+      }
+      
+      if (points.length === 0) {
+        alert("Failed to map the detected object to 3D space. Please try another camera angle.");
+        return;
+      }
+      
+      // Compute 3D bounds
+      const xs = points.map(p => p.x);
+      const ys = points.map(p => p.y);
+      const zs = points.map(p => p.z);
+      
+      const bounds = {
+        x: [Math.min(...xs), Math.max(...xs)],
+        y: [Math.min(...ys), Math.max(...ys)],
+        z: [Math.min(...zs), Math.max(...zs)]
+      };
+      
+      // Expand height (Y) slightly if too flat
+      if (bounds.y[1] - bounds.y[0] < 0.1) {
+        bounds.y[0] -= 0.5;
+        bounds.y[1] += 0.5;
+      }
+      // Expand other bounds if needed
+      if (bounds.x[1] - bounds.x[0] < 0.1) {
+        bounds.x[0] -= 0.2; bounds.x[1] += 0.2;
+      }
+      if (bounds.z[1] - bounds.z[0] < 0.1) {
+        bounds.z[0] -= 0.2; bounds.z[1] += 0.2;
+      }
+      
+      let color = '#ff3366';
+      if (det.class.includes('chair') || det.class.includes('couch') || det.class.includes('sofa')) color = '#ffaa00';
+      else if (det.class.includes('tv')) color = '#00d4ff';
+      else if (det.class.includes('table') || det.class.includes('desk')) color = '#00ff66';
+      else if (det.class.includes('bookcase') || det.class.includes('wardrobe') || det.class.includes('cabinet')) color = '#cc00ff';
+      
+      const finalZone = {
+        id: Date.now(),
+        name: `${det.class.charAt(0).toUpperCase() + det.class.slice(1)} ${zones.length + 1}`,
+        type: 'Equipment',
+        color: color,
+        shape: 'Cuboid',
+        bounds,
+        visible: true
+      };
+      
+      const updatedZones = [...zones, finalZone];
+      setZones(updatedZones);
+      renderAllZones(updatedZones);
+      if (selectedMap) {
+        saveZonesToStorage(selectedMap.name, updatedZones);
+      }
+      
+      // Select it for editing immediately
+      setSelectedAlignZoneId(finalZone.id);
+    })
+    .catch(err => {
+      setIsDetecting(false);
+      console.error(err);
+      alert('Error during interactive click detection: ' + err.message);
+    });
+  };
+
   useEffect(() => {
     if (selectedMap) {
       const loadedZones = loadZonesFromStorage(selectedMap.name);
@@ -104,6 +248,14 @@ export default function AnnotationTab({ selectedMap }) {
       if (!cursorMesh.visible) return; // Only click if hovered over model
       
       const pt = cursorMesh.position.clone();
+      
+      if (drawModeType === 'auto_click') {
+        setIsDrawingMode(false);
+        controls.enabled = true;
+        handleAutoClickDetect(pt);
+        return;
+      }
+      
       setDrawPoints(prev => {
         // Prevent adding multiple points if event fires repeatedly for same click
         if (prev.length > 0 && prev[prev.length-1].distanceTo(pt) < 0.05) return prev;
@@ -503,7 +655,12 @@ export default function AnnotationTab({ selectedMap }) {
   const saveZone = () => {
     let requiredPoints = 2;
     if (drawModeType === '3point') requiredPoints = 3;
-    else if (drawModeType === 'object') requiredPoints = 1;
+    else if (drawModeType === 'object' || drawModeType === 'auto_click') requiredPoints = 1;
+
+    if (drawModeType === 'auto_click') {
+      alert("Please click directly on the 3D model to automatically detect objects.");
+      return;
+    }
 
     if (drawPoints.length !== requiredPoints) {
       alert(`Please draw on the model first (click ${requiredPoints} points)`);
@@ -665,6 +822,18 @@ export default function AnnotationTab({ selectedMap }) {
             Please select a map from the 3D MAPS tab first.
           </div>
         )}
+        {isDetecting && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', zIndex: 1000, color: 'white', fontFamily: 'monospace' }}>
+            <div style={{ width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: '4px solid var(--accent-cyan)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '15px' }}></div>
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+            <div>🤖 Running YOLO11 Real-Time Detector...</div>
+          </div>
+        )}
       </div>
 
       {/* Right: Annotation Panel */}
@@ -777,13 +946,14 @@ export default function AnnotationTab({ selectedMap }) {
                 onChange={(e) => setDrawModeType(e.target.value)}
                 style={{ flex: 1, padding: '8px', background: '#1e2330', border: '1px solid var(--panel-border)', color: 'white', borderRadius: '4px', fontFamily: 'monospace' }}
               >
+                <option value="auto_click">Auto Object Detector (1-Click YOLO)</option>
                 <option value="3point">3-Point Zone (3-Dot Square)</option>
                 <option value="2point">2-Point Zone (Floor Base)</option>
                 <option value="object">Manual Object (1-Click Tag)</option>
               </select>
             </div>
 
-            {drawModeType !== 'object' && (
+            {drawModeType !== 'object' && drawModeType !== 'auto_click' && (
               <div style={{ marginBottom: '10px' }}>
                 <select 
                   value={newZone.shape || 'Cuboid'}
@@ -802,7 +972,7 @@ export default function AnnotationTab({ selectedMap }) {
               style={{ width: '100%', padding: '8px', background: isDrawingMode ? 'var(--warning-amber)' : '#1e2330', color: isDrawingMode ? '#000' : 'white', border: '1px solid var(--panel-border)', marginBottom: '10px', fontWeight: isDrawingMode ? 'bold' : 'normal' }}
             >
               {isDrawingMode 
-                ? `Drawing... (Click ${drawModeType === 'object' ? '1' : drawModeType === '2point' ? '2' : '3'} point${drawModeType === 'object' ? '' : 's'})` 
+                ? `Drawing... (Click ${drawModeType === 'object' || drawModeType === 'auto_click' ? '1' : drawModeType === '2point' ? '2' : '3'} point${drawModeType === 'object' || drawModeType === 'auto_click' ? '' : 's'})` 
                 : '📍 Draw/Place on Model'}
             </button>
 
@@ -815,9 +985,11 @@ export default function AnnotationTab({ selectedMap }) {
 
         {isDrawingMode && (
           <div style={{ background: 'var(--warning-amber)', padding: '10px', borderRadius: '4px', color: '#000', marginBottom: '20px', fontSize: '12px', fontWeight: 'bold' }}>
-            {drawModeType === 'object' 
-              ? `Click a single point on the 3D model to place the object tag. ${drawPoints.length}/1 selected.`
-              : `Click ${drawModeType === '2point' ? '2' : '3'} points on the 3D model. ${drawPoints.length}/${drawModeType === '2point' ? '2' : '3'} points selected.`}
+            {drawModeType === 'auto_click' 
+              ? 'Click a single object on the 3D model to automatically detect and bounding-box it.'
+              : drawModeType === 'object' 
+                ? `Click a single point on the 3D model to place the object tag. ${drawPoints.length}/1 selected.`
+                : `Click ${drawModeType === '2point' ? '2' : '3'} points on the 3D model. ${drawPoints.length}/${drawModeType === '2point' ? '2' : '3'} points selected.`}
           </div>
         )}
 

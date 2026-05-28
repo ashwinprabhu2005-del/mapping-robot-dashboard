@@ -501,7 +501,7 @@ export default function AnnotationTab({ selectedMap }) {
       renderer.render(scene, camera);
       const dataUrl = renderer.domElement.toDataURL("image/jpeg", 0.8);
       
-      const response = await fetch("http://localhost:5000/api/detect", {
+      const response = await fetch("http://localhost:5001/api/detect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -526,7 +526,7 @@ export default function AnnotationTab({ selectedMap }) {
       
     } catch (err) {
       console.error(err);
-      alert("Error connecting to YOLO backend. Is the Python server running on port 5000?");
+      alert("Error connecting to YOLO backend. Is the Python server running on port 5001?");
     } finally {
       setIsDetecting(false);
     }

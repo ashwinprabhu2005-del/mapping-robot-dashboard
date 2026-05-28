@@ -8,7 +8,7 @@ import { MapPin, Navigation, Clock } from 'lucide-react';
 const POLL_INTERVAL = 2500;
 const LOG_INTERVAL  = 3500;
 
-export default function Dashboard() {
+export default function Dashboard({ setIsAuthenticated }) {
   const [activeTab, setActiveTab]   = useState('live');
   const [dashData, setDashData]     = useState(null);
   const [logs, setLogs]             = useState([]);
@@ -52,6 +52,7 @@ export default function Dashboard() {
         isRunning={isRunning}
         onToggleRunning={() => setRunning(r => !r)}
         onRestart={handleRestart}
+        setIsAuthenticated={setIsAuthenticated}
       />
 
       {/* ── Status bar ── */}

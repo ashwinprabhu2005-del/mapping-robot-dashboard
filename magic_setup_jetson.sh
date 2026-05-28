@@ -29,12 +29,19 @@ echo "=========================================================="
 chmod +x amr_data_publisher/scripts/install_depth_camera_jetson.sh
 ./amr_data_publisher/scripts/install_depth_camera_jetson.sh
 
-# 3. Build the code
+# 3. Build the code and install Node.js dependencies
 echo "=========================================================="
-echo " 🔨 Building the Software..."
+echo " 🔨 Building the Software & Installing Server..."
 echo "=========================================================="
 source /opt/ros/humble/setup.bash || echo "ROS2 Humble not found. Assuming it is installed differently."
 colcon build
+
+# Install Node dependencies for the lifecycle server
+if ! command -v npm &> /dev/null; then
+    echo "Installing Node.js and NPM..."
+    sudo apt-get update && sudo apt-get install -y nodejs npm
+fi
+npm install express cors
 
 # 4. Setup Auto-Start Service
 echo "=========================================================="
@@ -51,7 +58,7 @@ After=network.target
 User=$USER
 WorkingDirectory=$(pwd)
 ExecStartPre=/bin/bash -c 'source /opt/ros/humble/setup.bash'
-ExecStart=/bin/bash -c 'source $(pwd)/install/setup.bash && ros2 launch amr_data_publisher depth_camera_only.launch.py'
+ExecStart=/usr/bin/node $(pwd)/ros_lifecycle_server.js
 Restart=always
 RestartSec=10
 
@@ -62,12 +69,15 @@ EOL
 sudo systemctl daemon-reload
 sudo systemctl enable depth-camera.service
 
-echo "=========================================================="
-echo " 🎉 MAGIC SETUP COMPLETE! "
+JETSON_IP=$(hostname -I | awk '{print $1}')
+echo "🎉 MAGIC SETUP COMPLETE! "
 echo "=========================================================="
 echo "1. Log out and log back in (to apply USB camera permissions)."
-echo "2. Run this command to start the camera right now:"
-echo "   sudo systemctl start depth-camera.service"
+echo "2. The Jetson will automatically run the Backend Server on boot!"
 echo ""
-echo "Note: The camera will now start AUTOMATICALLY every time you plug in the Jetson Orin Nano!"
+echo "🚀 HOW TO LAUNCH THE CAMERA:"
+echo "Go to your PC Dashboard (http://localhost:5173)."
+echo "Log in using:"
+echo "  User ID (Host IP):  $JETSON_IP"
+echo "  Password:           admin"
 echo "=========================================================="

@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    # ── WASD-style joystick mapping ───────────────────────────────────────────
+    # Left  stick UP/DOWN   → forward / backward  (like W / S)
+    # Right stick LEFT/RIGHT → turn left / right  (like A / D)
+    #
+    # Axis numbers (verify with: jstest /dev/input/js0)
+    #   Axis 1 = Left  stick vertical
+    #   Axis 3 = Right stick horizontal
+    axis_linear:
+      x: 1          # Left stick vertical  → forward / backward
+    axis_angular:
+      yaw: 2        # Right stick horizontal (left/right) → turn
+
+    # Speed limits
+    scale_linear:
+      x: 0.5        # max 0.5 m/s
+    scale_linear_turbo:
+      x: 1.0        # full speed (unused since no turbo button)
+
+    scale_angular:
+      yaw: 1.0      # max 1.0 rad/s
+
+    # No deadman button — moves freely like WASD
+    require_enable_button: false
+    enable_button: -1             # disabled
+    enable_turbo_button: -1       # disabled
+
+    publish_stamped_twist: false

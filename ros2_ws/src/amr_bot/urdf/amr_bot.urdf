@@ -1,0 +1,358 @@
+<?xml version="1.0"?>
+<!-- amr_bot: diff drive robot with depth camera -->
+<robot name="amr_bot">
+
+  <!-- MATERIALS -->
+  <material name="red">    <color rgba="0.8 0.1 0.1 1.0"/></material>
+  <material name="black">  <color rgba="0.1 0.1 0.1 1.0"/></material>
+  <material name="grey">   <color rgba="0.6 0.6 0.6 1.0"/></material>
+  <material name="blue">   <color rgba="0.1 0.4 0.9 1.0"/></material>
+  <material name="white">  <color rgba="0.9 0.9 0.9 1.0"/></material>
+
+  <!-- BASE FOOTPRINT  — root link, sits on ground plane.
+       The diff_drive plugin publishes odom → base_footprint TF. -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <!--
+      wheel_radius = 0.05
+      chassis half-height = 0.05
+      → chassis centre is at z = 0.05 + 0.05 = 0.10 above ground
+    -->
+    <origin xyz="0 0 0.10" rpy="0 0 0"/>
+  </joint>
+  
+  <link name="imu_link">
+  <inertial>
+    	<mass value="0.01"/>
+    <origin xyz="0 0 0"/>
+    <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+  </inertial>
+  </link>
+
+  <!-- BASE LINK  (chassis)
+       Dimensions: 0.40 (L) × 0.30 (W) × 0.10 (H) m -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.40 0.30 0.10"/></geometry>
+      <material name="red"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.40 0.30 0.10"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="5.0"/>
+      <!-- Box inertia: ixx = m(w²+h²)/12, iyy = m(l²+h²)/12, izz = m(l²+w²)/12 -->
+      <inertia ixx="0.0292" ixy="0.0" ixz="0.0"
+               iyy="0.0542" iyz="0.0"
+               izz="0.0521"/>
+    </inertial>
+  </link>
+  
+  <joint name="imu_joint" type="fixed">
+  <parent link="base_link"/>
+  <child link="imu_link"/>
+  <origin xyz="0 0 0.1" rpy="0 0 0"/>
+  </joint>
+
+  <!-- LEFT WHEEL
+       - cylinder axis default is Z; we rotate it to lie along Y
+         by adding rpy="π/2 0 0" inside visual/collision origin.
+       - joint is at left edge (y=+0.17) and at wheel-centre height
+         (z = −half_chassis_height = −0.05) -->
+  <link name="left_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.8"/>
+      <!-- Cylinder: ixx=iyy = m(3r²+h²)/12, izz = mr²/2 -->
+      <inertia ixx="0.000507" ixy="0.0" ixz="0.0"
+               iyy="0.000507" iyz="0.0"
+               izz="0.001000"/>
+    </inertial>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="left_wheel_link"/>
+    <origin xyz="0.0 0.17 -0.05" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.05" friction="0.1"/>
+  </joint>
+
+  <!-- RIGHT WHEEL -->
+  <link name="right_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry><cylinder radius="0.05" length="0.04"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.8"/>
+      <inertia ixx="0.000507" ixy="0.0" ixz="0.0"
+               iyy="0.000507" iyz="0.0"
+               izz="0.001000"/>
+    </inertial>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="right_wheel_link"/>
+    <origin xyz="0.0 -0.17 -0.05" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.05" friction="0.1"/>
+  </joint>
+
+  <!-- FRONT CASTER  (frictionless → won't fight diff drive)
+       Placed at front-bottom of chassis -->
+  <link name="front_caster_link">
+    <visual>
+      <geometry><sphere radius="0.025"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry><sphere radius="0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <!-- Sphere inertia: I = 2mr²/5 -->
+      <inertia ixx="0.00005" ixy="0.0" ixz="0.0"
+               iyy="0.00005" iyz="0.0"
+               izz="0.00005"/>
+    </inertial>
+  </link>
+
+  <joint name="front_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="front_caster_link"/>
+    <!-- front edge (x=+0.175), at ground level (z=−0.05−0.025=−0.075) -->
+    <origin xyz="0.175 0.0 -0.075" rpy="0 0 0"/>
+  </joint>
+
+  <!-- REAR CASTER -->
+  <link name="rear_caster_link">
+    <visual>
+      <geometry><sphere radius="0.025"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry><sphere radius="0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.2"/>
+      <inertia ixx="0.00005" ixy="0.0" ixz="0.0"
+               iyy="0.00005" iyz="0.0"
+               izz="0.00005"/>
+    </inertial>
+  </link>
+
+  <joint name="rear_caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="rear_caster_link"/>
+    <origin xyz="-0.175 0.0 -0.075" rpy="0 0 0"/>
+  </joint>
+
+  <!-- DEPTH CAMERA BODY LINK
+       Mounted on top-front of chassis.
+       Body is a small box (0.05 × 0.10 × 0.05 m). -->
+  <link name="depth_camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.05 0.10 0.05"/></geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.05 0.10 0.05"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0000208" ixy="0.0" ixz="0.0"
+               iyy="0.0000208" iyz="0.0"
+               izz="0.0000208"/>
+    </inertial>
+  </link>
+
+  <joint name="depth_camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="depth_camera_link"/>
+    <!-- top of chassis (z=+0.05) + half camera height (0.025) + small gap -->
+    <origin xyz="0.15 0.0 0.08" rpy="0 0 0"/>
+  </joint>
+
+  <!-- DEPTH CAMERA OPTICAL FRAME
+       ROS convention for optical frames:
+         Z  → forward (into the scene)
+         X  → right
+         Y  → down
+       Body frame has Z-up, X-forward → need to rotate:
+         −90° around X  then  −90° around Z
+       rpy = (−π/2, 0, −π/2) -->
+  <link name="depth_camera_optical_frame"/>
+
+  <joint name="depth_camera_optical_joint" type="fixed">
+    <parent link="depth_camera_link"/>
+    <child  link="depth_camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.5707963 0 -1.5707963"/>
+  </joint>
+
+  <!-- GAZEBO PROPERTIES -->
+
+  <!-- Drive wheels: very high friction + stiff contact = no skidding -->
+  <gazebo reference="left_wheel_link">
+    <mu1>10.0</mu1>
+    <mu2>10.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>1.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>0.1</maxVel>
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <gazebo reference="right_wheel_link">
+    <mu1>10.0</mu1>
+    <mu2>10.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>1.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>0.1</maxVel>
+    <material>Gazebo/Black</material>
+  </gazebo>
+
+  <!-- Casters: zero friction so they slide freely -->
+  <gazebo reference="front_caster_link">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <gazebo reference="rear_caster_link">
+    <mu1>0.0</mu1>
+    <mu2>0.0</mu2>
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Red</material>
+  </gazebo>
+
+  <gazebo reference="depth_camera_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+
+  <!-- DIFFERENTIAL DRIVE PLUGIN
+       Topics published:
+         /cmd_vel   (subscribed) → wheel velocities
+         /odom      (published)  → nav_msgs/Odometry
+         /tf        odom → base_footprint
+         /joint_states -->
+  <gazebo>
+    <plugin name="diff_drive_controller" filename="libgazebo_ros_diff_drive.so">
+      <ros>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+
+      <!-- wheel_separation = distance between wheel centres = 2 × 0.17 = 0.34 -->
+      <wheel_separation>0.34</wheel_separation>
+      <wheel_radius>0.05</wheel_radius>
+
+      <max_wheel_torque>5.0</max_wheel_torque>
+      <max_wheel_acceleration>0.5</max_wheel_acceleration>
+      <max_linear_velocity>0.5</max_linear_velocity>
+      <max_angular_velocity>1.0</max_angular_velocity>
+
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>true</publish_wheel_tf>
+
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+    </plugin>
+  </gazebo>
+
+  <!-- DEPTH CAMERA PLUGIN
+       sensor type="depth" + libgazebo_ros_camera.so publishes:
+
+         /camera/color/image_raw          sensor_msgs/Image
+         /camera/depth/image_raw          sensor_msgs/Image (float32 metres)
+         /camera/depth/camera_info        sensor_msgs/CameraInfo
+         /camera/depth/points             sensor_msgs/PointCloud2  ← RViz mapping
+
+       frame_name must point to the optical frame for correct orientation. -->
+  <gazebo reference="depth_camera_link">
+    <sensor name="depth_camera" type="depth">
+      <always_on>true</always_on>
+      <update_rate>15</update_rate>   <!-- 15 Hz is plenty for mapping -->
+
+      <camera name="depth_camera">
+        <horizontal_fov>1.0471975</horizontal_fov>  <!-- 60 degrees -->
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>8.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </camera>
+
+      <plugin name="depth_camera_controller" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>/</namespace>
+        </ros>
+        <camera_name>camera</camera_name>
+        <frame_name>depth_camera_optical_frame</frame_name>
+        <hack_baseline>0.0</hack_baseline>
+        <min_depth>0.1</min_depth>
+        <max_depth>8.0</max_depth>
+      </plugin>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="imu_link">
+  <sensor name="imu_sensor" type="imu">
+    <always_on>true</always_on>
+    <update_rate>50</update_rate>
+
+    <imu>
+      <angular_velocity>
+        <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></x>
+        <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></y>
+        <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></z>
+      </angular_velocity>
+    </imu>
+
+    <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+      <ros>
+        <remapping>~/out:=/imu/data</remapping>
+      </ros>
+    </plugin>
+  </sensor>
+</gazebo>
+
+</robot>

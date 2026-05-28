@@ -1,6 +1,7 @@
-import { Play, Pause, RotateCcw, Save, Bot, Wifi } from 'lucide-react';
+import { Play, Pause, RotateCcw, Save, Bot, Wifi, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
-export default function ControlHeader({ robotState, isRunning, onToggleRunning, onRestart }) {
+export default function ControlHeader({ robotState, isRunning, onToggleRunning, onRestart, setIsAuthenticated }) {
   const modeColor = robotState?.mode === 'AUTONOMOUS' ? 'var(--cyan)' : 'var(--amber)';
 
   return (
@@ -66,12 +67,51 @@ export default function ControlHeader({ robotState, isRunning, onToggleRunning, 
         </button>
       </div>
 
-      {/* Right: Connection */}
-      <div style={{ display:'flex', alignItems:'center', gap:'14px' }}>
+      {/* Right: Connection & Logout */}
+      <div style={{ display:'flex', alignItems:'center', gap:'20px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'11px', color:'var(--green)' }}>
           <Wifi size={13} />
           <span style={{ fontFamily:'var(--font-mono)' }}>CONNECTED</span>
         </div>
+        <div style={{ width:'1px', height:'24px', background:'var(--border)' }} />
+        <button 
+          onClick={async () => {
+            try {
+              const jetsonIp = window.localStorage.getItem('jetsonIp') || window.location.hostname;
+              await fetch(`http://${jetsonIp}:5174/api/stop_launch`, { method: 'POST' });
+            } catch (e) {
+              console.error("Logout stop_launch error:", e);
+            }
+            window.localStorage.removeItem('amrDashboardAuthenticated');
+            window.localStorage.removeItem('jetsonIp');
+            setIsAuthenticated(false);
+          }}
+          style={{
+            background: 'transparent',
+            border: '1px solid #ff4d4d',
+            color: '#ff4d4d',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = '#ff4d4d';
+            e.target.style.color = '#000';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'transparent';
+            e.target.style.color = '#ff4d4d';
+          }}
+        >
+          <LogOut size={13} />
+          LOGOUT
+        </button>
       </div>
     </header>
   );

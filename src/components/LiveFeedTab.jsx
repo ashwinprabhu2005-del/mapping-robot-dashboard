@@ -30,7 +30,7 @@ export default function LiveFeedTab({ selectedMap }) {
     { time: '4:38:16 PM', msg: 'System initialized', type: 'info' }
   ]);
 
-  const ROBOT_IP = import.meta.env.VITE_ROBOT_IP || '127.0.0.1';
+  const ROBOT_IP = window.localStorage.getItem('jetsonIp') || import.meta.env.VITE_ROBOT_IP || '127.0.0.1';
   const simIntervalRef = useRef(null);
   
   // Native MJPEG stream scaled down for performance (removes lag from raw 1080p images)

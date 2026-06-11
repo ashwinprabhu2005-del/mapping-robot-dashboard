@@ -30,7 +30,7 @@ def generate_launch_description():
     )
 
     # 2. RTAB-Map SLAM node (configured for visual odometry only)
-    rtabmap_config_dir = os.path.join(get_package_share_directory('amr_slam'), 'config')
+    rtabmap_config_dir = os.path.join(get_package_share_directory('amr_data_publisher'), 'config')
     rtabmap_node = Node(
         package='rtabmap_ros',
         executable='rtabmap',

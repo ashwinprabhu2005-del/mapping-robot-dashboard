@@ -53,6 +53,7 @@ def generate_launch_description():
             'world':   world_file,
             'verbose': 'false',
             'pause':   'false',
+            'gui':     'false',
         }.items(),
     )
 

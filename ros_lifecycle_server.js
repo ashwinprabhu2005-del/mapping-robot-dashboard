@@ -34,7 +34,8 @@ const cleanAllRosProcesses = () => {
 app.post('/api/launch', (req, res) => {
     const startLaunch = () => {
         console.log('Starting depth_camera_only.launch.py...');
-        amrProcess = spawn('bash', ['-c', 'source /opt/ros/humble/setup.bash && source ~/depth_cam_ws/install/setup.bash && ros2 launch amr_data_publisher depth_camera_only.launch.py'], {
+        const workspaceSetup = path.join(__dirname, 'install', 'setup.bash');
+        amrProcess = spawn('bash', ['-c', `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher depth_camera_only.launch.py`], {
             stdio: 'inherit',
             detached: true
         });

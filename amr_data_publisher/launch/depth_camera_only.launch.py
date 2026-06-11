@@ -32,7 +32,7 @@ def generate_launch_description():
     # 2. RTAB-Map SLAM node (configured for visual odometry only)
     rtabmap_config_dir = os.path.join(get_package_share_directory('amr_data_publisher'), 'config')
     rtabmap_node = Node(
-        package='rtabmap_ros',
+        package='rtabmap_slam',
         executable='rtabmap',
         name='rtabmap',
         parameters=[
@@ -49,7 +49,7 @@ def generate_launch_description():
 
     # Visual Odometry Node for RTAB-Map (Since no wheel odometry exists)
     visual_odometry_node = Node(
-        package='rtabmap_ros',
+        package='rtabmap_odom',
         executable='rgbd_odometry',
         name='rgbd_odometry',
         parameters=[{
@@ -84,10 +84,19 @@ def generate_launch_description():
         ])
     )
 
+    # 5. Web Video Server (for live camera feed on dashboard)
+    web_video_server = Node(
+        package='web_video_server',
+        executable='web_video_server',
+        name='web_video_server',
+        output='screen'
+    )
+
     return LaunchDescription([
         realsense_node,
         visual_odometry_node,
         rtabmap_node,
         mqtt_publisher_node,
-        rosbridge_server
+        rosbridge_server,
+        web_video_server
     ])

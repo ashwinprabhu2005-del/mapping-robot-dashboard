@@ -55,7 +55,10 @@ def generate_launch_description():
         name='rgbd_odometry',
         parameters=[{
             'frame_id': 'camera_link',
-            'publish_tf': True
+            'publish_tf': True,
+            'approx_sync': True,
+            'qos_image': 2,
+            'qos_camera_info': 2
         }],
         remappings=[
             ('rgb/image', '/camera/color/image_raw'),

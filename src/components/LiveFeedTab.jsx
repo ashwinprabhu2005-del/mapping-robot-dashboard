@@ -8,7 +8,7 @@ import LiveROSViewer from './LiveROSViewer';
 
 export default function LiveFeedTab({ selectedMap }) {
   const [rosConnection, setRosConnection] = useState(null);
-  const [cameraTopic, setCameraTopic] = useState('/camera/image_raw');
+  const [cameraTopic, setCameraTopic] = useState('/camera/color/image_raw');
   const [autoNav, setAutoNav] = useState(false);
   const [mappingStatus, setMappingStatus] = useState('Mapping');
   const [battery, setBattery] = useState(86);

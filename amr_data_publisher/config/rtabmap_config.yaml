@@ -1,16 +1,16 @@
-# Use visual odometry only (no wheel encoders)
-Odom/Strategy: "0"           # Frame-to-frame odometry
-Odom/ScanKeyFrameThr: "0.0"
-RGBD/LinearUpdate: "0.01"    # Update every 1cm movement
-RGBD/AngularUpdate: "0.01"   # Update every 1 degree turn
-
-# Subscribe to depth camera directly
-subscribe_depth: true
-subscribe_rgb: true
-subscribe_odom: false         # No wheel odometry!
-
-# Camera topics
-rgb_topic: /camera/color/image_raw
-depth_topic: /camera/aligned_depth_to_color/image_raw
-camera_info_topic: /camera/color/camera_info
-frame_id: camera_link
+/**:
+  ros__parameters:
+    Odom/Strategy: "0"
+    Odom/ScanKeyFrameThr: "0.0"
+    RGBD/LinearUpdate: "0.01"
+    RGBD/AngularUpdate: "0.01"
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_odom: false
+    rgb_topic: /camera/color/image_raw
+    depth_topic: /camera/aligned_depth_to_color/image_raw
+    camera_info_topic: /camera/color/camera_info
+    frame_id: camera_link
+    approx_sync: true
+    qos_image: 2
+    qos_camera_info: 2

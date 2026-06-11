@@ -70,7 +70,7 @@ def generate_launch_description():
     publisher_config = os.path.join(get_package_share_directory('amr_data_publisher'), 'config', 'publisher_config.yaml')
     mqtt_publisher_node = Node(
         package='amr_data_publisher',
-        executable='mqtt_publisher_node',
+        executable='mqtt_publisher',
         name='mqtt_publisher',
         parameters=[publisher_config],
         output='screen'

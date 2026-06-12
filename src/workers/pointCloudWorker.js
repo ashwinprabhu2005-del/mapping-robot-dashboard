@@ -1,6 +1,7 @@
 // ANNOTATION: Web Worker to decode binary PointCloud2 ROS streams off the main thread.
 // Ensures 60 FPS UI rendering by delegating heavy computations to a background thread.
 self.onmessage = function (e) {
+  const {
     msgData, pointStep, width, height, is_bigendian,
     hasRGB, xOffset, yOffset, zOffset, rgbOffset, isMapping
   } = e.data;

@@ -278,8 +278,8 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
     // Frame attachment logic
     if (pointsRef.current && robotMeshRef.current) {
       if (isMapping) {
-        if (pointsRef.current.parent !== scene) {
-          scene.add(pointsRef.current);
+        if (pointsRef.current.parent !== sceneRef.current) {
+          sceneRef.current.add(pointsRef.current);
           pointsRef.current.position.set(0, 0, 0);
           pointsRef.current.quaternion.identity();
         }
@@ -292,7 +292,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
         }
       }
     }
-  }, [robotPose, isMapping, scene]);
+  }, [robotPose, isMapping]);
 
   // ── Live Path Update ──────────────────────────────────────────────────────
   useEffect(() => {

@@ -97,7 +97,7 @@ def generate_launch_description():
 
     # 5. Launch Manager (Service to start/stop mapping)
     launch_manager_node = ExecuteProcess(
-        cmd=['python3', os.path.expanduser('~/amr_ws/src/amr_bot/scripts/launch_manager.py')],
+        cmd=['python3', os.path.expanduser('~/mapping-robot-dashboard/ros2_ws/src/amr_bot/scripts/launch_manager.py')],
         output='screen'
     )
 

@@ -8,7 +8,7 @@ import LiveROSViewer from './LiveROSViewer';
 
 export default function LiveFeedTab({ selectedMap }) {
   const [rosConnection, setRosConnection] = useState(null);
-  const [cameraTopic, setCameraTopic] = useState('/camera/color/image_raw');
+  const [cameraTopic, setCameraTopic] = useState('/camera/image_raw');
   const [wasdEnabled, setWasdEnabled] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [battery, setBattery] = useState(86);
@@ -179,14 +179,27 @@ export default function LiveFeedTab({ selectedMap }) {
   const toggleMapping = (start) => {
     setIsMapping(start);
     if (!rosConnection) return;
-    const svcName = start ? '/rtabmap/resume' : '/rtabmap/pause';
-    const svc = new ROSLIB.Service({
+    
+    // Call physical robot services (rtabmap pause/resume)
+    const physSvcName = start ? '/rtabmap/resume' : '/rtabmap/pause';
+    const physSvc = new ROSLIB.Service({
       ros: rosConnection,
-      name: svcName,
+      name: physSvcName,
       serviceType: 'std_srvs/Empty'
     });
-    svc.callService(new ROSLIB.ServiceRequest({}), (res) => {
-      console.log(`Called ${svcName}`);
+    physSvc.callService(new ROSLIB.ServiceRequest({}), (res) => {
+      console.log(`Called ${physSvcName}`);
+    });
+
+    // Call simulation services (launch_manager start/stop)
+    const simSvcName = start ? '/start_mapping' : '/stop_mapping';
+    const simSvc = new ROSLIB.Service({
+      ros: rosConnection,
+      name: simSvcName,
+      serviceType: 'std_srvs/Trigger'
+    });
+    simSvc.callService(new ROSLIB.ServiceRequest({}), (res) => {
+      console.log(`Called ${simSvcName}:`, res.message);
     });
   };
 

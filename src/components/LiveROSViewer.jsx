@@ -308,7 +308,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
 
     const cloudTopic = new ROSLIB.Topic({
       ros,
-      name: isMapping ? '/cloud_map' : '/camera/depth/color/points',
+      name: isMapping ? '/cloud_map' : '/camera/points',
       messageType: 'sensor_msgs/PointCloud2',
       throttle_rate: 1000,
       queue_length: 1

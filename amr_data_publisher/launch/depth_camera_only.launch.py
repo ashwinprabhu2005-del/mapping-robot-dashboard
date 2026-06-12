@@ -27,6 +27,9 @@ def generate_launch_description():
             'align_depth.enable': True,
             'unite_imu_method': 1 # 1=linear interpolation for IMU
         }],
+        remappings=[
+            ('/camera/depth/color/points', '/camera/points')
+        ],
         output='screen'
     )
 

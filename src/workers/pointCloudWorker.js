@@ -36,9 +36,9 @@ self.onmessage = function (e) {
         positions[count * 3 + 1] = z;
         positions[count * 3 + 2] = -y;
       } else {
-        positions[count * 3]     = x;
+        positions[count * 3]     = z;
         positions[count * 3 + 1] = -y;
-        positions[count * 3 + 2] = -z;
+        positions[count * 3 + 2] = x;
       }
 
       if (hasRGB) {

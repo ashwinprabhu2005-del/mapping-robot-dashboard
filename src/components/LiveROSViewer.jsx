@@ -153,7 +153,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
       new THREE.BoxGeometry(0.2, 0.2, 0.2),
       new THREE.MeshStandardMaterial({ color: 0xff3366, emissive: 0x440011 })
     );
-    frontMesh.position.set(0, 0.25, 0.35);
+    frontMesh.position.set(0.35, 0.25, 0);
     robotModelGroup.add(frontMesh);
 
     const ring = new THREE.Mesh(
@@ -274,7 +274,25 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
     if (position) robotMeshRef.current.position.set(position.x, position.z, -position.y);
     if (orientation?.w !== undefined)
       robotMeshRef.current.quaternion.set(orientation.x, orientation.z, -orientation.y, orientation.w);
-  }, [robotPose]);
+
+    // Frame attachment logic
+    if (pointsRef.current && robotMeshRef.current) {
+      if (isMapping) {
+        if (pointsRef.current.parent !== scene) {
+          scene.add(pointsRef.current);
+          pointsRef.current.position.set(0, 0, 0);
+          pointsRef.current.quaternion.identity();
+        }
+      } else {
+        if (pointsRef.current.parent !== robotMeshRef.current) {
+          robotMeshRef.current.add(pointsRef.current);
+          // Optional camera offset (approximate RealSense mount position)
+          pointsRef.current.position.set(0.2, 0.3, 0);
+          pointsRef.current.quaternion.identity();
+        }
+      }
+    }
+  }, [robotPose, isMapping, scene]);
 
   // ── Live Path Update ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -331,7 +349,8 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
         xOffset: fields.x.offset,
         yOffset: fields.y.offset,
         zOffset: fields.z.offset,
-        rgbOffset: fields.rgb ? fields.rgb.offset : 0
+        rgbOffset: fields.rgb ? fields.rgb.offset : 0,
+        isMapping: isMapping
       });
     });
 

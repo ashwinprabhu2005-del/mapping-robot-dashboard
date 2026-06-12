@@ -1,5 +1,6 @@
 import { Play, Pause, RotateCcw, Save, Bot, Wifi, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import * as ROSLIB from 'roslib';
 
 export default function ControlHeader({ robotState, isRunning, onToggleRunning, onRestart, setIsAuthenticated }) {
   const modeColor = robotState?.mode === 'AUTONOMOUS' ? 'var(--cyan)' : 'var(--amber)';
@@ -78,6 +79,22 @@ export default function ControlHeader({ robotState, isRunning, onToggleRunning, 
           onClick={async () => {
             try {
               const jetsonIp = window.localStorage.getItem('jetsonIp') || window.location.hostname;
+              
+              // 1. Stop mapping via ROS
+              const ros = new ROSLIB.Ros({ url: `ws://${jetsonIp}:9090` });
+              ros.on('connection', () => {
+                const stopSimSvc = new ROSLIB.Service({ ros, name: '/stop_mapping', serviceType: 'std_srvs/Trigger' });
+                stopSimSvc.callService(new ROSLIB.ServiceRequest({}), () => {});
+
+                const stopPhysSvc = new ROSLIB.Service({ ros, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
+                stopPhysSvc.callService(new ROSLIB.ServiceRequest({}), () => {
+                  ros.close();
+                });
+
+                setTimeout(() => ros.close(), 1000); // Fallback close
+              });
+
+              // 2. Stop launch via backend (if exists)
               await fetch(`http://${jetsonIp}:5174/api/stop_launch`, { method: 'POST' });
             } catch (e) {
               console.error("Logout stop_launch error:", e);

@@ -9,8 +9,8 @@ import LiveROSViewer from './LiveROSViewer';
 export default function LiveFeedTab({ selectedMap }) {
   const [rosConnection, setRosConnection] = useState(null);
   const [cameraTopic, setCameraTopic] = useState('/camera/color/image_raw');
-  const [autoNav, setAutoNav] = useState(false);
-  const [mappingStatus, setMappingStatus] = useState('Mapping');
+  const [wasdEnabled, setWasdEnabled] = useState(false);
+  const [isMapping, setIsMapping] = useState(false);
   const [battery, setBattery] = useState(86);
   const [position, setPosition] = useState({ x: 1.44, y: 0.00, z: -19.33 });
   const [orientationQ, setOrientationQ] = useState({ x: 0, y: 0, z: 0, w: 1 });
@@ -176,6 +176,20 @@ export default function LiveFeedTab({ selectedMap }) {
     }
   }, [cmdVelTopic]);
 
+  const toggleMapping = (start) => {
+    setIsMapping(start);
+    if (!rosConnection) return;
+    const svcName = start ? '/rtabmap/resume' : '/rtabmap/pause';
+    const svc = new ROSLIB.Service({
+      ros: rosConnection,
+      name: svcName,
+      serviceType: 'std_srvs/Empty'
+    });
+    svc.callService(new ROSLIB.ServiceRequest({}), (res) => {
+      console.log(`Called ${svcName}`);
+    });
+  };
+
   // Keyboard listener for WASD
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -187,7 +201,7 @@ export default function LiveFeedTab({ selectedMap }) {
         });
       }
 
-      if (!cmdVelTopic || autoNav) return;
+      if (!cmdVelTopic || !wasdEnabled) return;
       if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
       
       const speed = 0.5;
@@ -206,7 +220,7 @@ export default function LiveFeedTab({ selectedMap }) {
         setActiveKeys(prev => ({ ...prev, [key]: false }));
       }
 
-      if (!cmdVelTopic || autoNav) return;
+      if (!cmdVelTopic || !wasdEnabled) return;
       if (['w', 'a', 's', 'd'].includes(key)) {
         publishTwist(0, 0);
       }
@@ -218,7 +232,7 @@ export default function LiveFeedTab({ selectedMap }) {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [cmdVelTopic, publishTwist, autoNav]);
+  }, [cmdVelTopic, publishTwist, wasdEnabled]);
 
 
   const startSimulation = () => {
@@ -275,7 +289,7 @@ export default function LiveFeedTab({ selectedMap }) {
           <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
             <div style={{ color: 'var(--text-muted)', marginBottom: '1px' }}>STATUS</div>
             <div style={{ color: 'var(--accent-cyan)', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>
-              {mappingStatus}
+              {isMapping ? 'Mapping Active' : 'Mapping Paused'}
             </div>
 
             <div style={{ color: 'var(--text-muted)', marginBottom: '1px' }}>POSITION (X, Y, Z)</div>
@@ -329,30 +343,24 @@ export default function LiveFeedTab({ selectedMap }) {
           <h3 style={{ margin: '0 0 8px 0', color: 'var(--accent-cyan)', fontSize: '12px' }}>ROBOT CONTROLS</h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
-            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(0, 212, 255, 0.1)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '5px', fontSize: '11px' }} onClick={() => setMappingStatus('Mapping')}>
-              <Play size={11} /> Start
+            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: isMapping ? 'rgba(0, 212, 255, 0.2)' : 'rgba(0, 212, 255, 0.05)', border: '1px solid var(--accent-cyan)', color: 'var(--accent-cyan)', padding: '8px', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }} onClick={() => toggleMapping(true)}>
+              <Play size={12} /> Start Mapping
             </button>
-            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px', fontSize: '11px' }} onClick={() => setMappingStatus('Paused')}>
-              <Pause size={11} /> Pause
-            </button>
-            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid var(--error-red)', color: 'var(--error-red)', background: 'transparent', padding: '5px', fontSize: '11px' }} onClick={() => setMappingStatus('Idle')}>
-              <Square size={11} /> Stop
-            </button>
-            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px', fontSize: '11px' }} onClick={() => setPosition({x:0, y:0, z:0})}>
-              <RotateCcw size={11} /> Reset
+            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', background: !isMapping ? 'rgba(255, 50, 50, 0.2)' : 'rgba(255, 50, 50, 0.05)', border: '1px solid var(--error-red)', color: 'var(--error-red)', padding: '8px', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }} onClick={() => toggleMapping(false)}>
+              <Square size={12} /> Finish Mapping
             </button>
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', cursor: 'pointer', marginBottom: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', cursor: 'pointer', marginBottom: '12px', background: '#11151c', padding: '8px', borderRadius: '4px', border: '1px solid var(--panel-border)' }}>
             <input 
               type="checkbox" 
-              checked={autoNav} 
-              onChange={(e) => setAutoNav(e.target.checked)} 
-              style={{ width: '12px', height: '12px', accentColor: 'var(--accent-cyan)' }}
+              checked={wasdEnabled} 
+              onChange={(e) => setWasdEnabled(e.target.checked)} 
+              style={{ width: '14px', height: '14px', accentColor: 'var(--accent-cyan)' }}
             />
-            Auto Navigation
+            Enable WASD Control
           </label>
-          {!autoNav && (
+          {wasdEnabled && (
             <div style={{ marginTop: '5px', padding: '8px', background: 'rgba(0, 212, 255, 0.02)', border: '1px solid var(--panel-border)', borderRadius: '4px' }}>
               <div style={{ color: 'var(--text-muted)', fontSize: '9px', marginBottom: '8px', textAlign: 'center', letterSpacing: '0.5px' }}>
                 MANUAL OVERRIDE (WASD)
@@ -399,7 +407,7 @@ export default function LiveFeedTab({ selectedMap }) {
                {fps * 100} pts shown
             </div>
           </div>
-          <LiveROSViewer ros={rosConnection} robotPose={{ position, orientation: orientationQ }} robotPath={robotPath} />
+          <LiveROSViewer ros={rosConnection} robotPose={{ position, orientation: orientationQ }} robotPath={robotPath} isMapping={isMapping} />
         </div>
 
         {/* Alerts Area (Reduced height) */}

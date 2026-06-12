@@ -7,7 +7,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import * as ROSLIB from 'roslib';
 import { storageService } from '../utils/storageService';
 
-export default function LiveROSViewer({ ros, robotPose, robotPath }) {
+export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) {
   const containerRef = useRef(null);
   const robotMeshRef = useRef(null);
   const pathLineRef = useRef(null);
@@ -190,55 +190,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath }) {
 
     // ── ROS Subscriptions ─────────────────────────────────────────────────────
     if (ros) {
-      // ── Web Worker: decodes binary PointCloud2 off the main thread ──────────
-      const pcWorker = new Worker(
-        new URL('../workers/pointCloudWorker.js', import.meta.url),
-        { type: 'module' }
-      );
 
-      // Worker sends back decoded Float32Arrays via zero-copy transfer
-      pcWorker.onmessage = (e) => {
-        if (e.data.error) { console.error('Worker:', e.data.error); return; }
-        const { positions, colors, count } = e.data;
-        // Replace buffer attributes with worker output (no copy needed)
-        pcGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-        pcGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
-        pcGeom.setDrawRange(0, count);
-        pcGeom.computeBoundingSphere();
-        pcCountRef.current = count;
-        workerBusy = false; // ready for next frame
-      };
-
-      let workerBusy = false;
-      const cloudTopic = new ROSLIB.Topic({
-        ros,
-        name: '/cloud_map',
-        messageType: 'sensor_msgs/PointCloud2',
-        throttle_rate: 1000, // 1 update/sec — worker handles it with no lag
-        queue_length: 1
-      });
-
-      cloudTopic.subscribe((msg) => {
-        setDataStatus(s => ({ ...s, cloud: true }));
-        if (workerBusy) return; // drop frame if worker still decoding previous
-        workerBusy = true;
-        const fields = {};
-        msg.fields.forEach(f => { fields[f.name] = f; });
-        if (!fields.x || !fields.y || !fields.z) { workerBusy = false; return; }
-        // Send raw message to worker — non-blocking, render loop untouched
-        pcWorker.postMessage({
-          msgData: msg.data,
-          pointStep: msg.point_step,
-          width: msg.width,
-          height: msg.height,
-          is_bigendian: msg.is_bigendian,
-          hasRGB: !!fields.rgb,
-          xOffset: fields.x.offset,
-          yOffset: fields.y.offset,
-          zOffset: fields.z.offset,
-          rgbOffset: fields.rgb ? fields.rgb.offset : 0
-        });
-      });
 
       // ─ OccupancyGrid — queue_length:1 prevents 2D map buildup ─
       const mapTopic = new ROSLIB.Topic({
@@ -330,6 +282,67 @@ export default function LiveROSViewer({ ros, robotPose, robotPath }) {
     const points = robotPath.map(p => new THREE.Vector3(p.x, p.z, -p.y));
     pathLineRef.current.geometry.setFromPoints(points);
   }, [robotPath]);
+
+  // ── Dynamic Point Cloud Subscription based on Mapping State ──────────────
+  useEffect(() => {
+    if (!ros) return;
+
+    const pcWorker = new Worker(
+      new URL('../workers/pointCloudWorker.js', import.meta.url),
+      { type: 'module' }
+    );
+
+    let workerBusy = false;
+    pcWorker.onmessage = (e) => {
+      if (e.data.error) { console.error('Worker:', e.data.error); return; }
+      if (!pointsRef.current) return;
+      const pcGeom = pointsRef.current.geometry;
+      const { positions, colors, count } = e.data;
+      pcGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+      pcGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+      pcGeom.setDrawRange(0, count);
+      pcGeom.computeBoundingSphere();
+      pcCountRef.current = count;
+      workerBusy = false;
+    };
+
+    const cloudTopic = new ROSLIB.Topic({
+      ros,
+      name: isMapping ? '/cloud_map' : '/camera/depth/color/points',
+      messageType: 'sensor_msgs/PointCloud2',
+      throttle_rate: 1000,
+      queue_length: 1
+    });
+
+    cloudTopic.subscribe((msg) => {
+      setDataStatus(s => ({ ...s, cloud: true }));
+      if (workerBusy) return;
+      workerBusy = true;
+      const fields = {};
+      msg.fields.forEach(f => { fields[f.name] = f; });
+      if (!fields.x || !fields.y || !fields.z) { workerBusy = false; return; }
+      pcWorker.postMessage({
+        msgData: msg.data,
+        pointStep: msg.point_step,
+        width: msg.width,
+        height: msg.height,
+        is_bigendian: msg.is_bigendian,
+        hasRGB: !!fields.rgb,
+        xOffset: fields.x.offset,
+        yOffset: fields.y.offset,
+        zOffset: fields.z.offset,
+        rgbOffset: fields.rgb ? fields.rgb.offset : 0
+      });
+    });
+
+    return () => {
+      cloudTopic.unsubscribe();
+      pcWorker.terminate();
+      if (pointsRef.current) {
+        pointsRef.current.geometry.setDrawRange(0, 0); // clear on switch
+      }
+    };
+  }, [ros, isMapping]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>

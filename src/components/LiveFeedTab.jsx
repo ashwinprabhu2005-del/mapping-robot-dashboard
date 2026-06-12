@@ -180,16 +180,19 @@ export default function LiveFeedTab({ selectedMap }) {
     setIsMapping(start);
     if (!rosConnection) return;
     
-    // Call physical robot services (rtabmap pause/resume)
-    const physSvcName = start ? '/rtabmap/resume' : '/rtabmap/pause';
-    const physSvc = new ROSLIB.Service({
-      ros: rosConnection,
-      name: physSvcName,
-      serviceType: 'std_srvs/Empty'
-    });
-    physSvc.callService(new ROSLIB.ServiceRequest({}), (res) => {
-      console.log(`Called ${physSvcName}`);
-    });
+    // Call physical robot services (rtabmap pause/resume/reset)
+    if (start) {
+      // Completely wipe the physical robot's internal map memory before starting
+      const resetSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/reset', serviceType: 'std_srvs/Empty' });
+      resetSvc.callService(new ROSLIB.ServiceRequest({}), () => {
+        console.log('Called /rtabmap/reset');
+        const resumeSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/resume', serviceType: 'std_srvs/Empty' });
+        resumeSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/resume'));
+      });
+    } else {
+      const pauseSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
+      pauseSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/pause'));
+    }
 
     // Call simulation services (launch_manager start/stop)
     const simSvcName = start ? '/start_mapping' : '/stop_mapping';

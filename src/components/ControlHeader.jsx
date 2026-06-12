@@ -83,15 +83,17 @@ export default function ControlHeader({ robotState, isRunning, onToggleRunning, 
               // 1. Stop mapping via ROS
               const ros = new ROSLIB.Ros({ url: `ws://${jetsonIp}:9090` });
               ros.on('connection', () => {
-                const stopSimSvc = new ROSLIB.Service({ ros, name: '/stop_mapping', serviceType: 'std_srvs/Trigger' });
-                stopSimSvc.callService(new ROSLIB.ServiceRequest({}), () => {});
-
-                const stopPhysSvc = new ROSLIB.Service({ ros, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
-                stopPhysSvc.callService(new ROSLIB.ServiceRequest({}), () => {
-                  ros.close();
+                ros.getServices((services) => {
+                  if (services.includes('/stop_mapping')) {
+                    const stopSimSvc = new ROSLIB.Service({ ros, name: '/stop_mapping', serviceType: 'std_srvs/Trigger' });
+                    stopSimSvc.callService(new ROSLIB.ServiceRequest({}), () => {});
+                  }
+                  if (services.includes('/rtabmap/pause')) {
+                    const stopPhysSvc = new ROSLIB.Service({ ros, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
+                    stopPhysSvc.callService(new ROSLIB.ServiceRequest({}), () => {});
+                  }
+                  setTimeout(() => ros.close(), 500); // Close after services are called
                 });
-
-                setTimeout(() => ros.close(), 1000); // Fallback close
               });
 
               // 2. Stop launch via backend (if exists)

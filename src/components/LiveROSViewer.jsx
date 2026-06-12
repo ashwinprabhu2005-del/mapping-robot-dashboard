@@ -192,49 +192,6 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
     if (ros) {
 
 
-      // ─ OccupancyGrid — queue_length:1 prevents 2D map buildup ─
-      const mapTopic = new ROSLIB.Topic({
-        ros,
-        name: '/map',
-        messageType: 'nav_msgs/OccupancyGrid',
-        throttle_rate: 3000,
-        queue_length: 1
-      });
-
-      mapTopic.subscribe((msg) => {
-        setDataStatus(s => ({ ...s, map: true }));
-        try {
-          const { width, height, resolution } = msg.info;
-          const originX = msg.info.origin.position.x;
-          const originY = msg.info.origin.position.y;
-          const data = msg.data;
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          const imgData = ctx.createImageData(width, height);
-          for (let i = 0; i < data.length; i++) {
-            const val = data[i];
-            const fi = (height - 1 - Math.floor(i / width)) * width + (i % width);
-            const idx = fi * 4;
-            if (val === -1) { imgData.data[idx] = 50; imgData.data[idx + 1] = 50; imgData.data[idx + 2] = 80; imgData.data[idx + 3] = 160; }
-            else if (val === 0) { imgData.data[idx] = 15; imgData.data[idx + 1] = 20; imgData.data[idx + 2] = 30; imgData.data[idx + 3] = 200; }
-            else { imgData.data[idx] = 0; imgData.data[idx + 1] = 200; imgData.data[idx + 2] = 255; imgData.data[idx + 3] = 255; }
-          }
-          ctx.putImageData(imgData, 0, 0);
-          const tex = new THREE.CanvasTexture(canvas);
-          if (mapMeshRef.current) { scene.remove(mapMeshRef.current); mapMeshRef.current.geometry.dispose(); }
-          const mapW = width * resolution, mapH = height * resolution;
-          const mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(mapW, mapH),
-            new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: THREE.DoubleSide })
-          );
-          mesh.rotation.x = -Math.PI / 2;
-          mesh.position.set(originX + mapW / 2, 0.01, -(originY + mapH / 2));
-          scene.add(mesh);
-          mapMeshRef.current = mesh;
-        } catch (e) { console.error('OccupancyGrid decode error:', e); }
-      });
-
       // ─ TF diagnostic ─
       const diagTf = new ROSLIB.Topic({ ros, name: '/tf', messageType: 'tf2_msgs/TFMessage', queue_length: 1 });
       diagTf.subscribe(() => { setDataStatus(s => ({ ...s, tf: true })); diagTf.unsubscribe(); });
@@ -266,6 +223,73 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
       renderer.dispose();
     };
   }, [ros]);
+
+  // ── 2D Map Subscription (Clear on pause/logout) ───────────────────────────
+  useEffect(() => {
+    if (!ros || !sceneRef.current) return;
+
+    if (!isMapping) {
+      if (mapMeshRef.current) {
+        sceneRef.current.remove(mapMeshRef.current);
+        if (mapMeshRef.current.geometry) mapMeshRef.current.geometry.dispose();
+        if (mapMeshRef.current.material) {
+          if (mapMeshRef.current.material.map) mapMeshRef.current.material.map.dispose();
+          mapMeshRef.current.material.dispose();
+        }
+        mapMeshRef.current = null;
+      }
+      return;
+    }
+
+    const mapTopic = new ROSLIB.Topic({
+      ros,
+      name: '/map',
+      messageType: 'nav_msgs/OccupancyGrid',
+      throttle_rate: 3000,
+      queue_length: 1
+    });
+
+    mapTopic.subscribe((msg) => {
+      setDataStatus(s => ({ ...s, map: true }));
+      try {
+        const { width, height, resolution } = msg.info;
+        const originX = msg.info.origin.position.x;
+        const originY = msg.info.origin.position.y;
+        const data = msg.data;
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(width, height);
+        for (let i = 0; i < data.length; i++) {
+          const val = data[i];
+          const fi = (height - 1 - Math.floor(i / width)) * width + (i % width);
+          const idx = fi * 4;
+          if (val === -1) { imgData.data[idx] = 50; imgData.data[idx + 1] = 50; imgData.data[idx + 2] = 80; imgData.data[idx + 3] = 160; }
+          else if (val === 0) { imgData.data[idx] = 15; imgData.data[idx + 1] = 20; imgData.data[idx + 2] = 30; imgData.data[idx + 3] = 200; }
+          else { imgData.data[idx] = 0; imgData.data[idx + 1] = 200; imgData.data[idx + 2] = 255; imgData.data[idx + 3] = 255; }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        const tex = new THREE.CanvasTexture(canvas);
+        if (mapMeshRef.current) { 
+          sceneRef.current.remove(mapMeshRef.current); 
+          if (mapMeshRef.current.geometry) mapMeshRef.current.geometry.dispose(); 
+        }
+        const mapW = width * resolution, mapH = height * resolution;
+        const mesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(mapW, mapH),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, side: THREE.DoubleSide })
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(originX + mapW / 2, 0.01, -(originY + mapH / 2));
+        sceneRef.current.add(mesh);
+        mapMeshRef.current = mesh;
+      } catch (e) { console.error('OccupancyGrid decode error:', e); }
+    });
+
+    return () => {
+      mapTopic.unsubscribe();
+    };
+  }, [ros, isMapping]);
 
   // ── Live Pose Update ──────────────────────────────────────────────────────
   useEffect(() => {

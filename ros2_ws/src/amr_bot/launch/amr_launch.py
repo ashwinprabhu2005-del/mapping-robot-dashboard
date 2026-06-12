@@ -24,7 +24,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch_ros.actions import Node
 
-MAPS_DIR  = os.path.expanduser('~/amr_ws/maps')
+MAPS_DIR  = os.path.expanduser('~/mapping-robot-dashboard/ros2_ws/maps')
 _stamp    = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 _sess_dir = os.path.join(MAPS_DIR, f'session_{_stamp}')
 DB_PATH   = os.path.join(_sess_dir, 'rtabmap.db')

@@ -18,7 +18,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
-MAPS_DIR  = os.path.expanduser('~/amr_ws/maps')
+MAPS_DIR  = os.path.expanduser('~/mapping-robot-dashboard/ros2_ws/maps')
 _sess_dir = os.path.join(MAPS_DIR, 'active_session')
 DB_PATH   = os.path.join(_sess_dir, 'rtabmap.db')
 MAP_BASE  = os.path.join(_sess_dir, 'living_room_map')
@@ -113,7 +113,7 @@ def generate_launch_description():
             'bash', '-c',
             (
                 f'source /opt/ros/humble/setup.bash && '
-                f'source {os.path.expanduser("~/amr_ws/install/setup.bash")} && '
+                f'source {os.path.expanduser("~/mapping-robot-dashboard/ros2_ws/install/setup.bash")} && '
                 # Save 2D pgm map
                 f'sleep 1 && '
                 f'ros2 run nav2_map_server map_saver_cli '
@@ -122,7 +122,7 @@ def generate_launch_description():
                 f'echo "2D map saved: {MAP_BASE}.pgm" ; '
                 # Export DB to PLY and GLB
                 f'echo "Exporting 3D map to PLY and GLB..." && '
-                f'python3 {os.path.expanduser("~/amr_ws/src/amr_bot/scripts/export_map.py")} '
+                f'python3 {os.path.expanduser("~/mapping-robot-dashboard/ros2_ws/src/amr_bot/scripts/export_map.py")} '
                 f'--session {_sess_dir}'
             )
         ],

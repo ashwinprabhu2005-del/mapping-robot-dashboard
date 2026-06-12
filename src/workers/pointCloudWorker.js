@@ -1,9 +1,8 @@
 // ANNOTATION: Web Worker to decode binary PointCloud2 ROS streams off the main thread.
 // Ensures 60 FPS UI rendering by delegating heavy computations to a background thread.
 self.onmessage = function (e) {
-  const {
     msgData, pointStep, width, height, is_bigendian,
-    hasRGB, xOffset, yOffset, zOffset, rgbOffset
+    hasRGB, xOffset, yOffset, zOffset, rgbOffset, isMapping
   } = e.data;
 
   try {
@@ -29,10 +28,17 @@ self.onmessage = function (e) {
       const z = dv.getFloat32(base + zOffset, le);
       if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
 
-      // ROS (X-fwd, Y-left, Z-up) → Three.js (Y-up)
-      positions[count * 3]     = x;
-      positions[count * 3 + 1] = z;
-      positions[count * 3 + 2] = -y;
+      // If mapping, points are in 'map' frame (X-fwd, Y-left, Z-up) -> Three.js (Y-up)
+      // If not mapping, points are in 'camera_optical_frame' (Z-fwd, X-right, Y-down) -> Three.js (Y-up)
+      if (isMapping) {
+        positions[count * 3]     = x;
+        positions[count * 3 + 1] = z;
+        positions[count * 3 + 2] = -y;
+      } else {
+        positions[count * 3]     = x;
+        positions[count * 3 + 1] = -y;
+        positions[count * 3 + 2] = -z;
+      }
 
       if (hasRGB) {
         const rgbInt = dv.getUint32(base + rgbOffset, le);

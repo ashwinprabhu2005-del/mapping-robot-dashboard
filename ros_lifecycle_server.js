@@ -63,7 +63,7 @@ app.post('/api/launch', (req, res) => {
                 try {
                     process.kill(-amrProcess.pid, 'SIGINT');
                 } catch (e) {}
-                setTimeout(cleanAllRosProcesses, 2000); // safety fallback
+                setTimeout(cleanAllRosProcesses, 6000); // safety fallback to let RealSense release USB
             }
         }, 2000);
 
@@ -98,7 +98,7 @@ app.post('/api/stop_launch', (req, res) => {
         } catch (e) {
             console.error("Error killing process:", e);
         }
-        setTimeout(cleanAllRosProcesses, 1500); // Clean up 1.5s after SIGINT
+        setTimeout(cleanAllRosProcesses, 6000); // Clean up 6s after SIGINT to let RealSense release USB
     } else {
         cleanAllRosProcesses(); // if not running, still do a safety sweep
     }

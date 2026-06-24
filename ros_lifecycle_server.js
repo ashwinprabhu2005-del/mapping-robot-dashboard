@@ -39,9 +39,9 @@ const cleanAllRosProcesses = () => {
 
 // Kill only SLAM/mapping processes, leave camera and rosbridge running
 const cleanMappingProcesses = () => {
-    console.log("Sweeping mapping processes (rtabmap, mqtt)...");
+    console.log("Sweeping mapping processes (rtabmap_slam, mqtt)...");
     try {
-        spawn('bash', ['-c', 'pkill -9 -f "rtabmap|mqtt_publisher"'], {
+        spawn('bash', ['-c', 'pkill -9 -f "rtabmap_slam|mqtt_publisher"'], {
             stdio: 'ignore',
             detached: true
         });

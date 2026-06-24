@@ -28,7 +28,7 @@ const workspaceSetup = path.join(__dirname, 'install', 'setup.bash');
 const cleanAllRosProcesses = () => {
     console.log("Forcefully sweeping all remaining ROS processes...");
     try {
-        spawn('bash', ['-c', 'pkill -9 -f "ros2|rtabmap|launch_manager|amr_launch|gzserver|gzclient|rviz2|nav2|realsense"'], {
+        spawn('bash', ['-c', 'pkill -9 -f "ros2|rtabmap|launch_manager|amr_launch|gzserver|gzclient|rviz2|nav2|realsense|rosbridge|web_video|mqtt"'], {
             stdio: 'ignore',
             detached: true
         });
@@ -39,9 +39,9 @@ const cleanAllRosProcesses = () => {
 
 // Kill only SLAM/mapping processes, leave camera and rosbridge running
 const cleanMappingProcesses = () => {
-    console.log("Sweeping mapping processes (rtabmap, odometry, mqtt)...");
+    console.log("Sweeping mapping processes (rtabmap, mqtt)...");
     try {
-        spawn('bash', ['-c', 'pkill -9 -f "rtabmap|rgbd_odometry|mqtt_publisher"'], {
+        spawn('bash', ['-c', 'pkill -9 -f "rtabmap|mqtt_publisher"'], {
             stdio: 'ignore',
             detached: true
         });
@@ -54,37 +54,42 @@ const cleanMappingProcesses = () => {
 // Starts: RealSense camera + rosbridge + web_video_server ONLY
 app.post('/api/launch', (req, res) => {
     const startCamera = () => {
-        console.log('LOGIN: Starting depth_camera_only.launch.py...');
-        cameraProcess = spawn('bash', ['-c',
-            `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher depth_camera_only.launch.py`
-        ], { stdio: 'inherit', detached: true });
+        console.log('LOGIN: Sweeping old processes and starting depth_camera_only.launch.py...');
+        cleanAllRosProcesses();
+        
+        // Give 1.5 seconds for port release and cleanup before spawning
+        setTimeout(() => {
+            cameraProcess = spawn('bash', ['-c',
+                `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher depth_camera_only.launch.py`
+            ], { stdio: 'inherit', detached: true });
 
-        cameraProcess.on('error', (err) => console.error('Camera process error:', err));
-        cameraProcess.on('exit', (code, signal) => {
-            console.log(`Camera process exited (code=${code}, signal=${signal})`);
-            cameraProcess = null;
-            isShuttingDownCamera = false;
-            if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
-            cleanAllRosProcesses();
-        });
+            cameraProcess.on('error', (err) => console.error('Camera process error:', err));
+            cameraProcess.on('exit', (code, signal) => {
+                console.log(`Camera process exited (code=${code}, signal=${signal})`);
+                cameraProcess = null;
+                isShuttingDownCamera = false;
+                if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
+                cleanAllRosProcesses();
+            });
 
-        // Watchdog: if heartbeat stops (tab closed), kill camera after 6s
-        lastHeartbeat = Date.now();
-        watchdogInterval = setInterval(() => {
-            if (cameraProcess && !isShuttingDownCamera && (Date.now() - lastHeartbeat > 6000)) {
-                console.log("No heartbeat for 6s. Stopping camera launch...");
-                isShuttingDownCamera = true;
-                // Also stop mapping if running
-                if (mappingProcess && !isShuttingDownMapping) {
-                    isShuttingDownMapping = true;
-                    try { process.kill(-mappingProcess.pid, 'SIGINT'); } catch (e) {}
+            // Watchdog: if heartbeat stops (tab closed), kill camera after 6s
+            lastHeartbeat = Date.now();
+            watchdogInterval = setInterval(() => {
+                if (cameraProcess && !isShuttingDownCamera && (Date.now() - lastHeartbeat > 6000)) {
+                    console.log("No heartbeat for 6s. Stopping camera launch...");
+                    isShuttingDownCamera = true;
+                    // Also stop mapping if running
+                    if (mappingProcess && !isShuttingDownMapping) {
+                        isShuttingDownMapping = true;
+                        try { process.kill(-mappingProcess.pid, 'SIGINT'); } catch (e) {}
+                    }
+                    try { process.kill(-cameraProcess.pid, 'SIGINT'); } catch (e) {}
+                    setTimeout(cleanAllRosProcesses, 6000);
                 }
-                try { process.kill(-cameraProcess.pid, 'SIGINT'); } catch (e) {}
-                setTimeout(cleanAllRosProcesses, 6000);
-            }
-        }, 2000);
+            }, 2000);
 
-        res.json({ success: true, message: 'Camera launch started' });
+            res.json({ success: true, message: 'Camera launch started' });
+        }, 1500);
     };
 
     if (cameraProcess) {

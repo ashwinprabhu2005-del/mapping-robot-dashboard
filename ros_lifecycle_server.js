@@ -14,15 +14,21 @@ app.use(express.json());
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, 'dist')));
 
-let amrProcess = null;
-let isShuttingDown = false;
+// --- Process handles ---
+let cameraProcess = null;     // depth camera + rosbridge + web_video_server
+let mappingProcess = null;    // rtabmap + odometry + mqtt (started on demand)
+let isShuttingDownCamera = false;
+let isShuttingDownMapping = false;
 let lastHeartbeat = Date.now();
 let watchdogInterval = null;
 
+const workspaceSetup = path.join(__dirname, 'install', 'setup.bash');
+
+// Kill all ROS/mapping processes forcefully
 const cleanAllRosProcesses = () => {
-    console.log("Forcefully sweeping all remaining ROS and Gazebo processes...");
+    console.log("Forcefully sweeping all remaining ROS processes...");
     try {
-        spawn('bash', ['-c', 'pkill -9 -f "ros2|rtabmap|launch_manager|amr_launch|gzserver|gzclient|rviz2|nav2"'], {
+        spawn('bash', ['-c', 'pkill -9 -f "ros2|rtabmap|launch_manager|amr_launch|gzserver|gzclient|rviz2|nav2|realsense"'], {
             stdio: 'ignore',
             detached: true
         });
@@ -31,86 +37,145 @@ const cleanAllRosProcesses = () => {
     }
 };
 
-app.post('/api/launch', (req, res) => {
-    const startLaunch = () => {
-        console.log('Starting depth_camera_only.launch.py...');
-        const workspaceSetup = path.join(__dirname, 'install', 'setup.bash');
-        amrProcess = spawn('bash', ['-c', `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher depth_camera_only.launch.py`], {
-            stdio: 'inherit',
+// Kill only SLAM/mapping processes, leave camera and rosbridge running
+const cleanMappingProcesses = () => {
+    console.log("Sweeping mapping processes (rtabmap, odometry, mqtt)...");
+    try {
+        spawn('bash', ['-c', 'pkill -9 -f "rtabmap|rgbd_odometry|mqtt_publisher"'], {
+            stdio: 'ignore',
             detached: true
         });
+    } catch (e) {
+        console.error("Error executing mapping pkill:", e);
+    }
+};
 
-        amrProcess.on('error', (err) => {
-            console.error('Failed to start subprocess.', err);
-        });
+// ─── /api/launch — called on LOGIN ───────────────────────────────────────────
+// Starts: RealSense camera + rosbridge + web_video_server ONLY
+app.post('/api/launch', (req, res) => {
+    const startCamera = () => {
+        console.log('LOGIN: Starting depth_camera_only.launch.py...');
+        cameraProcess = spawn('bash', ['-c',
+            `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher depth_camera_only.launch.py`
+        ], { stdio: 'inherit', detached: true });
 
-        amrProcess.on('exit', (code, signal) => {
-            console.log(`AMR process exited with code ${code} and signal ${signal}`);
-            amrProcess = null;
-            isShuttingDown = false;
-            if (watchdogInterval) {
-                clearInterval(watchdogInterval);
-                watchdogInterval = null;
-            }
+        cameraProcess.on('error', (err) => console.error('Camera process error:', err));
+        cameraProcess.on('exit', (code, signal) => {
+            console.log(`Camera process exited (code=${code}, signal=${signal})`);
+            cameraProcess = null;
+            isShuttingDownCamera = false;
+            if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
             cleanAllRosProcesses();
         });
 
+        // Watchdog: if heartbeat stops (tab closed), kill camera after 6s
         lastHeartbeat = Date.now();
         watchdogInterval = setInterval(() => {
-            if (amrProcess && !isShuttingDown && (Date.now() - lastHeartbeat > 6000)) {
-                console.log("No heartbeat received for 6 seconds. Tab was likely closed. Stopping ROS launch...");
-                isShuttingDown = true;
-                try {
-                    process.kill(-amrProcess.pid, 'SIGINT');
-                } catch (e) {}
-                setTimeout(cleanAllRosProcesses, 6000); // safety fallback to let RealSense release USB
+            if (cameraProcess && !isShuttingDownCamera && (Date.now() - lastHeartbeat > 6000)) {
+                console.log("No heartbeat for 6s. Stopping camera launch...");
+                isShuttingDownCamera = true;
+                // Also stop mapping if running
+                if (mappingProcess && !isShuttingDownMapping) {
+                    isShuttingDownMapping = true;
+                    try { process.kill(-mappingProcess.pid, 'SIGINT'); } catch (e) {}
+                }
+                try { process.kill(-cameraProcess.pid, 'SIGINT'); } catch (e) {}
+                setTimeout(cleanAllRosProcesses, 6000);
             }
         }, 2000);
 
-        res.json({ success: true, message: 'Launch started successfully' });
+        res.json({ success: true, message: 'Camera launch started' });
     };
 
-    if (amrProcess) {
-        if (isShuttingDown) {
-            console.log("Waiting for previous process to shut down before relaunching...");
-            // Poll until it's dead
-            const checkInterval = setInterval(() => {
-                if (!amrProcess) {
-                    clearInterval(checkInterval);
-                    startLaunch();
-                }
+    if (cameraProcess) {
+        if (isShuttingDownCamera) {
+            const check = setInterval(() => {
+                if (!cameraProcess) { clearInterval(check); startCamera(); }
             }, 500);
-            return;
         } else {
-            return res.status(200).json({ success: true, message: 'AMR launch is already running' });
+            return res.status(200).json({ success: true, message: 'Camera already running' });
         }
     } else {
-        startLaunch();
+        startCamera();
     }
 });
 
+// ─── /api/start_mapping — called on "Start Mapping" button ───────────────────
+// Starts: rtabmap + rgbd_odometry + mqtt_publisher
+app.post('/api/start_mapping', (req, res) => {
+    if (mappingProcess && !isShuttingDownMapping) {
+        return res.status(200).json({ success: true, message: 'Mapping already running' });
+    }
+
+    const startMapping = () => {
+        console.log('START MAPPING: Launching mapping.launch.py...');
+        mappingProcess = spawn('bash', ['-c',
+            `source /opt/ros/humble/setup.bash && source ${workspaceSetup} && ros2 launch amr_data_publisher mapping.launch.py`
+        ], { stdio: 'inherit', detached: true });
+
+        mappingProcess.on('error', (err) => console.error('Mapping process error:', err));
+        mappingProcess.on('exit', (code, signal) => {
+            console.log(`Mapping process exited (code=${code}, signal=${signal})`);
+            mappingProcess = null;
+            isShuttingDownMapping = false;
+            cleanMappingProcesses();
+        });
+
+        res.json({ success: true, message: 'Mapping started' });
+    };
+
+    if (mappingProcess && isShuttingDownMapping) {
+        const check = setInterval(() => {
+            if (!mappingProcess) { clearInterval(check); startMapping(); }
+        }, 500);
+    } else {
+        startMapping();
+    }
+});
+
+// ─── /api/stop_mapping — called on "Finish Mapping" button ───────────────────
+// Stops: rtabmap + rgbd_odometry + mqtt — camera + rosbridge keep running
+app.post('/api/stop_mapping', (req, res) => {
+    if (mappingProcess && !isShuttingDownMapping) {
+        console.log('FINISH MAPPING: Stopping mapping processes...');
+        isShuttingDownMapping = true;
+        try { process.kill(-mappingProcess.pid, 'SIGINT'); } catch (e) {}
+        setTimeout(cleanMappingProcesses, 4000);
+    } else {
+        cleanMappingProcesses(); // safety sweep even if already dead
+    }
+    res.json({ success: true, message: 'Mapping stopped' });
+});
+
+// ─── /api/stop_launch — called on LOGOUT ─────────────────────────────────────
+// Stops everything: camera, rosbridge, web_video_server, and any mapping nodes
 app.post('/api/stop_launch', (req, res) => {
-    if (amrProcess && !isShuttingDown) {
-        console.log('Stopping ROS launch via manual stop request...');
-        isShuttingDown = true;
-        try {
-            process.kill(-amrProcess.pid, 'SIGINT');
-        } catch (e) {
-            console.error("Error killing process:", e);
-        }
-        setTimeout(cleanAllRosProcesses, 6000); // Clean up 6s after SIGINT to let RealSense release USB
-    } else {
-        cleanAllRosProcesses(); // if not running, still do a safety sweep
+    console.log('LOGOUT: Stopping all processes...');
+
+    // Stop mapping first if running
+    if (mappingProcess && !isShuttingDownMapping) {
+        isShuttingDownMapping = true;
+        try { process.kill(-mappingProcess.pid, 'SIGINT'); } catch (e) {}
     }
-    res.json({ success: true });
+
+    // Stop camera
+    if (cameraProcess && !isShuttingDownCamera) {
+        isShuttingDownCamera = true;
+        try { process.kill(-cameraProcess.pid, 'SIGINT'); } catch (e) {}
+    }
+
+    // Full sweep after 6s to release USB
+    setTimeout(cleanAllRosProcesses, 6000);
+    res.json({ success: true, message: 'All processes stopped' });
 });
 
+// ─── /api/heartbeat — sent periodically by dashboard to keep watchdog alive ──
 app.post('/api/heartbeat', (req, res) => {
     lastHeartbeat = Date.now();
     res.json({ success: true });
 });
 
-// The "catchall" handler: for any request that doesn't match one above, send back React's index.html file.
+// Catchall: serve React app for any unmatched route
 app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist/index.html'));
 });

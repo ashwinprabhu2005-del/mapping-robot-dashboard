@@ -186,41 +186,42 @@ export default function LiveFeedTab({ selectedMap }) {
     }
   }, [cmdVelTopic]);
 
-  const toggleMapping = (start) => {
+  const toggleMapping = async (start) => {
     setIsMapping(start);
-    if (!rosConnection) return;
-    
-    rosConnection.getServices((services) => {
-      // 1. Simulation Mapping (launch_manager)
-      if (services.includes('/start_mapping')) {
-        const simSvcName = start ? '/start_mapping' : '/stop_mapping';
-        const simSvc = new ROSLIB.Service({ ros: rosConnection, name: simSvcName, serviceType: 'std_srvs/Trigger' });
-        simSvc.callService(new ROSLIB.ServiceRequest({}), (res) => {
-          console.log(`Called ${simSvcName}:`, res?.message);
-        });
-      }
 
-      // 2. Physical Robot Mapping (rtabmap pause/resume/reset)
-      if (services.includes('/rtabmap/resume')) {
-        if (start) {
-          if (services.includes('/rtabmap/reset')) {
-            // Completely wipe the physical robot's internal map memory before starting
-            const resetSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/reset', serviceType: 'std_srvs/Empty' });
-            resetSvc.callService(new ROSLIB.ServiceRequest({}), () => {
-              console.log('Called /rtabmap/reset');
+    // Call the backend API to start/stop the mapping launch (rtabmap + odometry + mqtt)
+    const endpoint = start ? '/api/start_mapping' : '/api/stop_mapping';
+    try {
+      const res = await fetch(`http://${ROBOT_IP}:5174${endpoint}`, { method: 'POST' });
+      const data = await res.json();
+      console.log(`${endpoint}:`, data.message);
+    } catch (err) {
+      console.error(`Failed to call ${endpoint}:`, err);
+    }
+
+    // Also call rtabmap pause/resume if it's already running (graceful state control)
+    if (rosConnection) {
+      rosConnection.getServices((services) => {
+        if (services.includes('/rtabmap/resume') || services.includes('/rtabmap/pause')) {
+          if (start) {
+            if (services.includes('/rtabmap/reset')) {
+              const resetSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/reset', serviceType: 'std_srvs/Empty' });
+              resetSvc.callService(new ROSLIB.ServiceRequest({}), () => {
+                console.log('Called /rtabmap/reset');
+                const resumeSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/resume', serviceType: 'std_srvs/Empty' });
+                resumeSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/resume'));
+              });
+            } else if (services.includes('/rtabmap/resume')) {
               const resumeSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/resume', serviceType: 'std_srvs/Empty' });
               resumeSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/resume'));
-            });
-          } else {
-            const resumeSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/resume', serviceType: 'std_srvs/Empty' });
-            resumeSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/resume'));
+            }
+          } else if (services.includes('/rtabmap/pause')) {
+            const pauseSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
+            pauseSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/pause'));
           }
-        } else {
-          const pauseSvc = new ROSLIB.Service({ ros: rosConnection, name: '/rtabmap/pause', serviceType: 'std_srvs/Empty' });
-          pauseSvc.callService(new ROSLIB.ServiceRequest({}), () => console.log('Called /rtabmap/pause'));
         }
-      }
-    });
+      });
+    }
   };
 
   // Keyboard listener for WASD

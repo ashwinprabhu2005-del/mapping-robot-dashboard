@@ -27,17 +27,19 @@ def generate_launch_description():
              'enable_depth:=true '
              'align_depth.enable:=true '
              'pointcloud.enable:=true '
+             'decimation_filter.enable:=true '
              'publish_tf:=true'],
         output='screen'
     )
 
-    # Set pointcloud neon params after camera is fully up (15s delay)
+    # Set pointcloud neon and decimation params after camera is fully up (15s delay)
     # Must source ROS env explicitly since this runs in a non-interactive subprocess
     set_neon_enable = ExecuteProcess(
         cmd=['bash', '-c',
              'sleep 15 && source /opt/ros/humble/setup.bash && '
              'ros2 param set /camera/camera pointcloud__neon_.enable true && '
-             'echo "NEON ENABLE SET OK"'],
+             'ros2 param set /camera/camera decimation_filter.filter_magnitude 4 && '
+             'echo "NEON AND DECIMATION PARAMS SET OK"'],
         output='screen'
     )
 

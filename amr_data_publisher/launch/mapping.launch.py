@@ -31,6 +31,7 @@ def generate_launch_description():
                 'approx_sync': True,
             }
         ],
+        arguments=['--delete_db_on_start'],
         remappings=[
             ('rgb/image', '/camera/camera/color/image_raw'),
             ('depth/image', '/camera/camera/aligned_depth_to_color/image_raw'),

@@ -352,8 +352,9 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
       ros,
       name: isMapping ? '/cloud_map' : '/camera/camera/depth/color/points',
       messageType: 'sensor_msgs/PointCloud2',
-      throttle_rate: 1000,
-      queue_length: 1
+      throttle_rate: isMapping ? 1000 : 2000, // depth cloud is large; 0.5Hz when not mapping
+      queue_length: 1,
+      fragment_size: 200000 // fragment large messages so rosbridge doesn't drop them
     });
 
     cloudTopic.subscribe((msg) => {
@@ -439,7 +440,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
           {[
             { label: 'TF (/tf)', key: 'tf' },
             { label: '2D Map (/map)', key: 'map' },
-            { label: isMapping ? '3D Cloud (/cloud_map)' : '3D Cloud (/depth/color/points)', key: 'cloud' }
+            { label: isMapping ? '3D Cloud (/cloud_map)' : '3D Cloud (/camera/camera/depth/color/points)', key: 'cloud' }
           ].map(({ label, key }) => (
             <div key={key} style={{ marginBottom: 3 }}>
               {label}: <span style={{ color: dataStatus[key] ? '#00ff88' : '#ff4444' }}>

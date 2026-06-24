@@ -8,29 +8,25 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     # 1. Intel RealSense depth camera driver
-    # Publishes /camera/depth/points (3D point cloud)
-    # Publishes /camera/color/image_raw (color video)
-    # Publishes /camera/imu (if camera has IMU)
-    realsense_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            os.path.join(get_package_share_directory('realsense2_camera'), 'launch', 'rs_launch.py')
-        ]),
-        launch_arguments={
-            'enable_color': 'true',
-            'enable_depth': 'true',
-            'align_depth.enable': 'true',
-            'pointcloud.enable': 'true',
-            'publish_tf': 'true'
-        }.items()
+    # Using exact bash command requested by user to ensure parameters are properly parsed
+    realsense_launch = ExecuteProcess(
+        cmd=['bash', '-c', 
+             'ros2 launch realsense2_camera rs_launch.py '
+             'enable_color:=true '
+             'enable_depth:=true '
+             'align_depth.enable:=true '
+             'pointcloud.enable:=true '
+             'publish_tf:=true'],
+        output='screen'
     )
 
     set_neon_enable = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 5 && ros2 param set /camera/camera pointcloud__neon_.enable true'],
+        cmd=['bash', '-c', 'sleep 10 && ros2 param set /camera/camera pointcloud__neon_.enable true'],
         output='screen'
     )
 
     set_neon_filter = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 5 && ros2 param set /camera/camera pointcloud__neon_.stream_filter 2'],
+        cmd=['bash', '-c', 'sleep 10 && ros2 param set /camera/camera pointcloud__neon_.stream_filter 2'],
         output='screen'
     )
 

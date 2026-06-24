@@ -7,10 +7,9 @@
     subscribe_depth: true
     subscribe_rgb: true
     subscribe_odom: false
-    rgb_topic: /camera/color/image_raw
-    depth_topic: /camera/aligned_depth_to_color/image_raw
-    camera_info_topic: /camera/color/camera_info
-    frame_id: camera_link
+    frame_id: "camera_link"
+    odom_frame_id: "odom"
+    map_frame_id: "map"
     approx_sync: true
     qos_image: 2
     qos_camera_info: 2

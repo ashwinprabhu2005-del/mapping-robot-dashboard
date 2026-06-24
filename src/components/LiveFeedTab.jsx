@@ -8,7 +8,7 @@ import LiveROSViewer from './LiveROSViewer';
 
 export default function LiveFeedTab({ selectedMap }) {
   const [rosConnection, setRosConnection] = useState(null);
-  const [cameraTopic, setCameraTopic] = useState('/camera/image_raw');
+  const [cameraTopic, setCameraTopic] = useState('/camera/camera/color/image_raw');
   const [wasdEnabled, setWasdEnabled] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [battery, setBattery] = useState(86);
@@ -134,13 +134,22 @@ export default function LiveFeedTab({ selectedMap }) {
         setRobotPath(pathPoints);
       });
 
-      // Wait 2 seconds before falling back to simulation to avoid race conditions
-      setTimeout(() => {
-        if (!isConnected && !simIntervalRef.current) {
-          console.warn('ROSlib timeout, falling back to simulated data');
-          simIntervalRef.current = startSimulation();
+      // Wait 15 seconds before falling back to simulation to avoid race conditions
+      // Retrying connection in the meantime because rosbridge takes a few seconds to start
+      const retryInterval = setInterval(() => {
+        if (!isConnected && ros) {
+          console.log('Retrying ROS connection...');
+          try { ros.connect(`ws://${ROBOT_IP}:9090`); } catch (e) {}
         }
       }, 2000);
+
+      const simTimeout = setTimeout(() => {
+        if (!isConnected && !simIntervalRef.current) {
+          console.warn('ROSlib timeout (15s), falling back to simulated data');
+          clearInterval(retryInterval);
+          simIntervalRef.current = startSimulation();
+        }
+      }, 15000);
     } catch (e) {
       console.warn('ROSlib error, falling back to simulated data', e);
       if (!simIntervalRef.current) simIntervalRef.current = startSimulation();
@@ -149,6 +158,7 @@ export default function LiveFeedTab({ selectedMap }) {
     return () => {
       if (ros) ros.close();
       if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+      try { clearInterval(retryInterval); clearTimeout(simTimeout); } catch(e){}
     };
   }, []);
 
@@ -480,6 +490,8 @@ export default function LiveFeedTab({ selectedMap }) {
               onChange={(e) => setCameraTopic(e.target.value)}
               style={{ width: '100%', padding: '6px', background: '#11151c', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px' }}
             >
+              <option value="/camera/camera/color/image_raw">/camera/camera/color/image_raw</option>
+              <option value="/camera/camera/depth/image_raw">/camera/camera/depth/image_raw</option>
               <option value="/camera/image_raw">/camera/image_raw</option>
               <option value="/camera/color/image_raw">/camera/color/image_raw</option>
               <option value="/camera/depth/image_raw">/camera/depth/image_raw</option>

@@ -40,9 +40,9 @@ def generate_launch_description():
             os.path.join(rtabmap_config_dir, 'rtabmap_config.yaml')
         ],
         remappings=[
-            ('rgb/image', '/camera/color/image_raw'),
-            ('depth/image', '/camera/aligned_depth_to_color/image_raw'),
-            ('rgb/camera_info', '/camera/color/camera_info'),
+            ('rgb/image', '/camera/camera/color/image_raw'),
+            ('depth/image', '/camera/camera/aligned_depth_to_color/image_raw'),
+            ('rgb/camera_info', '/camera/camera/color/camera_info'),
             ('odom', '/odom') # visual odometry generated internally by RTAB-Map or separate rgbd_odometry node
         ],
         output='screen'
@@ -61,9 +61,9 @@ def generate_launch_description():
             'qos_camera_info': 2
         }],
         remappings=[
-            ('rgb/image', '/camera/color/image_raw'),
-            ('depth/image', '/camera/aligned_depth_to_color/image_raw'),
-            ('rgb/camera_info', '/camera/color/camera_info'),
+            ('rgb/image', '/camera/camera/color/image_raw'),
+            ('depth/image', '/camera/camera/aligned_depth_to_color/image_raw'),
+            ('rgb/camera_info', '/camera/camera/color/camera_info'),
             ('odom', '/odom')
         ],
         output='screen'

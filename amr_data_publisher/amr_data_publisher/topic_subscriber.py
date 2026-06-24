@@ -57,7 +57,7 @@ class TopicSubscriber:
         # Camera Feed
         if 'image' in self.callbacks:
             self.subscriptions.append(
-                self.node.create_subscription(Image, '/camera/color/image_raw', self.callbacks['image'], self.sensor_qos)
+                self.node.create_subscription(Image, '/camera/camera/color/image_raw', self.callbacks['image'], self.sensor_qos)
             )
             
         # Left Encoder

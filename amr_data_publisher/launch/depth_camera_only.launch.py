@@ -21,12 +21,18 @@ def generate_launch_description():
     )
 
     set_neon_enable = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 10 && ros2 param set /camera/camera pointcloud__neon_.enable true'],
+        cmd=['bash', '-c',
+             'sleep 15 && source /opt/ros/humble/setup.bash && '
+             'ros2 param set /camera/camera pointcloud__neon_.enable true && '
+             'echo "NEON ENABLE SET OK"'],
         output='screen'
     )
 
     set_neon_filter = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 10 && ros2 param set /camera/camera pointcloud__neon_.stream_filter 2'],
+        cmd=['bash', '-c',
+             'sleep 15 && source /opt/ros/humble/setup.bash && '
+             'ros2 param set /camera/camera pointcloud__neon_.stream_filter 2 && '
+             'echo "NEON FILTER SET OK"'],
         output='screen'
     )
 

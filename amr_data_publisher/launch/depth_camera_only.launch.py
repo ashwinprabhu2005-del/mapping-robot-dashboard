@@ -100,9 +100,9 @@ def generate_launch_description():
         realsense_launch,
         set_neon_enable,
         set_neon_filter,
-        visual_odometry_node,
-        rtabmap_node,
-        mqtt_publisher_node,
+        # visual_odometry_node,
+        # rtabmap_node,
+        # mqtt_publisher_node,
         rosbridge_server,
         web_video_server
     ])

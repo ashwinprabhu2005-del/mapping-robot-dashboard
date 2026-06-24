@@ -384,6 +384,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
       if (pointsRef.current) {
         pointsRef.current.geometry.setDrawRange(0, 0); // clear on switch
       }
+      setDataStatus(s => ({ ...s, cloud: false })); // reset cloud status on topic change
     };
   }, [ros, isMapping]);
 
@@ -438,7 +439,7 @@ export default function LiveROSViewer({ ros, robotPose, robotPath, isMapping }) 
           {[
             { label: 'TF (/tf)', key: 'tf' },
             { label: '2D Map (/map)', key: 'map' },
-            { label: '3D Cloud (/cloud_map)', key: 'cloud' }
+            { label: isMapping ? '3D Cloud (/cloud_map)' : '3D Cloud (/depth/color/points)', key: 'cloud' }
           ].map(({ label, key }) => (
             <div key={key} style={{ marginBottom: 3 }}>
               {label}: <span style={{ color: dataStatus[key] ? '#00ff88' : '#ff4444' }}>

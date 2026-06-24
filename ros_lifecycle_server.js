@@ -12,7 +12,16 @@ app.use(cors());
 app.use(express.json());
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, 'dist')));
+// Hashed assets (JS/CSS) can be cached; index.html must never be cached
+app.use(express.static(path.join(__dirname, 'dist'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+    }
+}));
 
 // --- Process handles ---
 let cameraProcess = null;     // depth camera + rosbridge + web_video_server

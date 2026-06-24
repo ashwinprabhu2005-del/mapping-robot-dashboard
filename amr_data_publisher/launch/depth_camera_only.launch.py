@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch_ros.actions import Node
@@ -11,25 +11,26 @@ def generate_launch_description():
     # Publishes /camera/depth/points (3D point cloud)
     # Publishes /camera/color/image_raw (color video)
     # Publishes /camera/imu (if camera has IMU)
-    realsense_node = Node(
-        package='realsense2_camera',
-        namespace='camera',
-        executable='realsense2_camera_node',
-        name='realsense2_camera',
-        parameters=[{
-            'enable_depth': True,
-            'enable_color': True,
-            'enable_infra1': False,
-            'enable_infra2': False,
-            'enable_gyro': True,
-            'enable_accel': True,
-            'pointcloud.enable': True,
-            'align_depth.enable': True,
-            'unite_imu_method': 1 # 1=linear interpolation for IMU
-        }],
-        remappings=[
-            ('/camera/depth/color/points', '/camera/points')
-        ],
+    realsense_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            os.path.join(get_package_share_directory('realsense2_camera'), 'launch', 'rs_launch.py')
+        ]),
+        launch_arguments={
+            'enable_color': 'true',
+            'enable_depth': 'true',
+            'align_depth.enable': 'true',
+            'pointcloud.enable': 'true',
+            'publish_tf': 'true'
+        }.items()
+    )
+
+    set_neon_enable = ExecuteProcess(
+        cmd=['bash', '-c', 'sleep 5 && ros2 param set /camera/camera pointcloud__neon_.enable true'],
+        output='screen'
+    )
+
+    set_neon_filter = ExecuteProcess(
+        cmd=['bash', '-c', 'sleep 5 && ros2 param set /camera/camera pointcloud__neon_.stream_filter 2'],
         output='screen'
     )
 
@@ -79,7 +80,7 @@ def generate_launch_description():
         package='amr_data_publisher',
         executable='mqtt_publisher',
         name='mqtt_publisher',
-        parameters=[publisher_config],
+        parameters=[{'config_file': publisher_config}],
         output='screen'
     )
 
@@ -100,7 +101,9 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        realsense_node,
+        realsense_launch,
+        set_neon_enable,
+        set_neon_filter,
         visual_odometry_node,
         rtabmap_node,
         mqtt_publisher_node,
